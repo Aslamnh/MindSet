@@ -1,4 +1,4 @@
-package com.example.mind_set.ui.navigation
+package com.example.mind_set.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold

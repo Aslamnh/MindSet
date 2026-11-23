@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.example.mind_set.ui.navigation.MindSetNavGraph
+import com.example.mind_set.navigation.MindSetNavGraph
 import com.example.mind_set.ui.theme.MindSetTheme
 
 class MainActivity : ComponentActivity() {
