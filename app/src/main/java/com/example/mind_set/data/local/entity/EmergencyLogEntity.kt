@@ -27,6 +27,9 @@ data class EmergencyLogEntity(
     @ColumnInfo(name = "is_synced")
     val isSynced: Boolean = false,
 
+    @ColumnInfo(name = "is_session_completed")
+    val isSessionCompleted: Boolean = false,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()
 )

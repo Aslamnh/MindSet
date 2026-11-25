@@ -17,6 +17,17 @@ interface EmergencyRepository {
     ): EmergencyIntervention
 
     fun getEmergencyHistory(): Flow<List<EmergencyIntervention>>
+
+    /**
+     * Menyimpan refleksi detail pengguna ke Room DB dan menandai sesi sebagai selesai.
+     * Mengembalikan ID log yang baru disimpan/diperbarui.
+     */
+    suspend fun submitReflectionAndClose(
+        urgeLevel: Int,
+        triggerCategory: String,
+        reflectionNote: String,
+        existingLogId: Int? = null
+    ): Int
 }
 
 class DefaultEmergencyRepository(
@@ -52,6 +63,7 @@ class DefaultEmergencyRepository(
             recommendationGiven = combinedRecommendation,
             sourceType = intervention.sourceType,
             isSynced = false,
+            isSessionCompleted = false,
             createdAt = intervention.createdAt
         )
 
@@ -59,6 +71,35 @@ class DefaultEmergencyRepository(
 
         // 3. Kembalikan domain model dengan ID yang baru tersimpan
         intervention.copy(id = insertedId)
+    }
+
+    override suspend fun submitReflectionAndClose(
+        urgeLevel: Int,
+        triggerCategory: String,
+        reflectionNote: String,
+        existingLogId: Int?
+    ): Int = withContext(Dispatchers.IO) {
+
+        // Jika sudah ada log aktif dari sesi ini, update refleksi-nya
+        if (existingLogId != null) {
+            emergencyLogDao.finalizeWithReflection(
+                logId = existingLogId,
+                note = reflectionNote
+            )
+            existingLogId
+        } else {
+            // Buat entry baru langsung sebagai log refleksi final
+            val entity = EmergencyLogEntity(
+                urgeLevel = urgeLevel,
+                triggerCategory = triggerCategory,
+                additionalNote = reflectionNote,
+                recommendationGiven = "Sesi Refleksi Krisis – Disimpan Offline",
+                sourceType = "REFLECTION_OFFLINE",
+                isSynced = false,
+                isSessionCompleted = true
+            )
+            emergencyLogDao.insertLog(entity).toInt()
+        }
     }
 
     override fun getEmergencyHistory(): Flow<List<EmergencyIntervention>> {

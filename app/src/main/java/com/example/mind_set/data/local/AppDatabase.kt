@@ -12,7 +12,7 @@ import com.example.mind_set.data.local.entity.EmergencyLogEntity
         EmergencyLogEntity::class
         // Nanti tinggal tambahkan: JournalEntity::class, StreakEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

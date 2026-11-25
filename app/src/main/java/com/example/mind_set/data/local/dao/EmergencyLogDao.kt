@@ -21,4 +21,10 @@ interface EmergencyLogDao {
 
     @Query("UPDATE emergency_logs SET is_synced = 1 WHERE id = :logId")
     suspend fun markAsSynced(logId: Int)
+
+    @Query("UPDATE emergency_logs SET is_session_completed = 1 WHERE id = :logId")
+    suspend fun markSessionCompleted(logId: Int)
+
+    @Query("UPDATE emergency_logs SET additional_note = :note, is_session_completed = 1 WHERE id = :logId")
+    suspend fun finalizeWithReflection(logId: Int, note: String)
 }
