@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mind_set.data.model.EmergencyIntervention
+import com.example.mind_set.data.model.JournalItem
 import com.example.mind_set.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -33,7 +34,8 @@ import java.util.Locale
 
 @Composable
 fun ProfilScreen(
-    emergencyHistory: List<EmergencyIntervention> = emptyList()
+    emergencyHistory: List<EmergencyIntervention> = emptyList(),
+    journalHistory: List<JournalItem> = emptyList()
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var biometricEnabled by remember { mutableStateOf(true) }
@@ -58,19 +60,26 @@ fun ProfilScreen(
         }
     }
 
-    // Data dummy bawaan untuk kategori Jurnal & Milestone
+    // Konversi data asli Room DB (journals) menjadi LogEntry UI
+    val dynamicJournalEntries = remember(journalHistory) {
+        val formatter = SimpleDateFormat("dd MMM yyyy, HH.mm 'WIB'", Locale("id", "ID"))
+        journalHistory.map { item ->
+            LogEntry(
+                date = formatter.format(Date(item.createdAt)),
+                category = "JURNAL",
+                type = "📝 Refleksi Harian (${item.mood})",
+                title = item.triggerText.take(40) + if (item.triggerText.length > 40) "..." else "",
+                body = item.reframingText.ifBlank { item.aiResponse },
+                tags = if (item.tags.isNotEmpty()) item.tags.joinToString(" • ") else "#JurnalHarian • #CBT",
+                badge = item.status,
+                isMilestone = false
+            )
+        }
+    }
+
+    // Data dummy bawaan untuk kategori Milestone
     val staticEntries = remember {
         listOf(
-            LogEntry(
-                date = "Kemarin, 21.15 WIB",
-                category = "JURNAL",
-                type = "📝 Refleksi Malam",
-                title = "Mengatasi Impuls Kelelahan",
-                body = "Mendiagnosis rasa lelah mental setelah kuliah sebagai faktor pemicu utama, lalu mengalihkan perhatian dengan aktivitas positif.",
-                tags = "#PencegahanKambuh • #RefleksiMalam",
-                badge = "Selesai",
-                isMilestone = false
-            ),
             LogEntry(
                 date = "12 Okt 2026, 15.49 WIB",
                 category = "MILESTONE",
@@ -80,23 +89,13 @@ fun ProfilScreen(
                 tags = "#IdentitasDiri • #MilestoneCBT",
                 badge = "Milestone",
                 isMilestone = true
-            ),
-            LogEntry(
-                date = "11 Okt 2026, 23.47 WIB",
-                category = "JURNAL",
-                type = "📓 Catatan Malam",
-                title = "Menemukan Pemicu Larut Malam",
-                body = "Mengenali kebosanan dan kurang tidur sebagai pemicu utama di malam hari dan menyusun jadwal tidur baru.",
-                tags = "#ConsciousMindset",
-                badge = "Selesai",
-                isMilestone = false
             )
         )
     }
 
     // Gabungkan & filter sesuai tab yang aktif
-    val filteredEntries = remember(selectedTab, dynamicEmergencyEntries, staticEntries) {
-        val allEntries = dynamicEmergencyEntries + staticEntries
+    val filteredEntries = remember(selectedTab, dynamicEmergencyEntries, dynamicJournalEntries, staticEntries) {
+        val allEntries = dynamicEmergencyEntries + dynamicJournalEntries + staticEntries
         when (selectedTab) {
             1 -> allEntries.filter { it.category == "JURNAL" }
             2 -> allEntries.filter { it.category == "DARURAT" }
@@ -204,7 +203,9 @@ fun ProfilScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Statistik Kumulatif
+                // Statistik Kumulatif (dinamis berdasarkan database jurnal & darurat)
+                val totalReflections = journalHistory.size + 65
+                val totalCbtSessions = 12 + emergencyHistory.size + journalHistory.size
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -212,9 +213,9 @@ fun ProfilScreen(
                 ) {
                     ProfileStat("42", "Hari Bersih\nKumulatif")
                     Box(modifier = Modifier.width(1.dp).height(36.dp).background(MindSetDivider))
-                    ProfileStat("68", "Refleksi\nTotal")
+                    ProfileStat("$totalReflections", "Refleksi\nTotal")
                     Box(modifier = Modifier.width(1.dp).height(36.dp).background(MindSetDivider))
-                    ProfileStat("${12 + emergencyHistory.size}", "Sesi CBT\nTuntas")
+                    ProfileStat("$totalCbtSessions", "Sesi CBT\nTuntas")
                 }
 
                 Spacer(Modifier.height(12.dp))
@@ -231,7 +232,7 @@ fun ProfilScreen(
             }
         }
 
-        // ── 3. Riwayat & Log Pemulihan (Terhubung ke Room DB) ────────────
+        // ── 3. Riwayat & Log Pemulihan (Terhubung ke Room DB Jurnal & Darurat) ────────────
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
@@ -252,7 +253,7 @@ fun ProfilScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Catatan refleksi dan intervensi darurat CBT",
+                            text = "Catatan refleksi jurnal dan intervensi darurat CBT",
                             style = MaterialTheme.typography.labelSmall,
                             color = MindSetNeutralGrey
                         )

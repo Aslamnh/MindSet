@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.mind_set.data.local.AppDatabase
 import com.example.mind_set.data.model.EmergencyIntervention
+import com.example.mind_set.data.model.JournalItem
 import com.example.mind_set.data.repository.DefaultEmergencyRepository
 import com.example.mind_set.data.repository.DefaultJournalRepository
 import com.example.mind_set.data.repository.EmergencyRepository
@@ -80,6 +81,10 @@ fun MainScreen(
         .getEmergencyHistory()
         .collectAsState(initial = emptyList())
 
+    val journalHistory: List<JournalItem> by journalRepository
+        .getAllJournals()
+        .collectAsState(initial = emptyList())
+
     Scaffold(
         bottomBar = { BottomNavBar(bottomNavController) }
     ) { innerPadding ->
@@ -101,7 +106,10 @@ fun MainScreen(
                 ProgressScreen()
             }
             composable("profil") {
-                ProfilScreen(emergencyHistory = emergencyHistory)
+                ProfilScreen(
+                    emergencyHistory = emergencyHistory,
+                    journalHistory = journalHistory
+                )
             }
         }
     }
