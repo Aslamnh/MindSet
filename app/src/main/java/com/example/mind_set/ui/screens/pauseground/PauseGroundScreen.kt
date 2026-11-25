@@ -1,8 +1,15 @@
 package com.example.mind_set.ui.screens.pauseground
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,22 +26,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mind_set.ui.emergency.EmergencyViewModel
 import com.example.mind_set.ui.theme.*
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun PauseGroundScreen(onBack: () -> Unit) {
-    var timeElapsed by remember { mutableStateOf(46) } // start at 46s for demo
+fun PauseGroundScreen(
+    viewModel: EmergencyViewModel,
+    onBack: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    // State Timer Box Breathing (4 menit = 240 detik)
+    var timeElapsed by remember { mutableIntStateOf(0) }
     val totalTime = 240
     var isTimerRunning by remember { mutableStateOf(true) }
-    var intensityRating by remember { mutableStateOf(4) }
-    var selectedTrigger by remember { mutableStateOf("Kesepian/Sendirian") }
 
-    // Countdown timer
     LaunchedEffect(isTimerRunning) {
         while (isTimerRunning && timeElapsed < totalTime) {
             delay(1000L)
@@ -42,407 +57,949 @@ fun PauseGroundScreen(onBack: () -> Unit) {
         }
     }
 
-    // Breathing phase (16s cycle: 4s inhale, 4s hold, 4s exhale, 4s rest)
+    // Siklus 16 detik: 4s Tarik, 4s Tahan, 4s Hembuskan, 4s Istirahat
     val breathPhase = timeElapsed % 16
-    val breathText = when {
-        breathPhase < 4  -> "Tarik Napas"
-        breathPhase < 8  -> "Tahan"
-        breathPhase < 12 -> "Hembuskan"
-        else             -> "Istirahat"
+    val (breathText, breathGuide) = when {
+        breathPhase < 4  -> "Tarik Napas" to "Tarik perlahan lewat hidung selama 4 detik..."
+        breathPhase < 8  -> "Tahan" to "Tahan napas dengan rileks, bahu tetap turun..."
+        breathPhase < 12 -> "Hembuskan" to "Hembuskan perlahan lewat mulut hingga paru-paru kosong..."
+        else             -> "Istirahat" to "Jeda sejenak sebelum siklus napas berikutnya..."
     }
     val breathCount = (breathPhase % 4) + 1
 
-    // Breathing circle animation
     val infiniteTransition = rememberInfiniteTransition(label = "breathing")
     val circleScale by infiniteTransition.animateFloat(
-        initialValue   = 0.75f,
-        targetValue    = 1.0f,
-        animationSpec  = infiniteRepeatable(
-            animation  = tween(4000, easing = FastOutSlowInEasing),
+        initialValue = 0.78f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "circleScale"
     )
 
-    fun formatTime(seconds: Int): String {
-        val m = seconds / 60
-        val s = seconds % 60
-        return "%02d:%02d".format(m, s)
-    }
-    fun formatTotal(seconds: Int): String {
-        val m = seconds / 60
-        val s = seconds % 60
-        return "%02d:%02d".format(m, s)
+    fun formatTime(seconds: Int): String = "%02d:%02d".format(seconds / 60, seconds % 60)
+
+    fun dialHotline119() {
+        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:119"))
+        context.startActivity(intent)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MindSetBackground)
-            .verticalScroll(rememberScrollState())
-    ) {
-        // ── Top bar ──────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MindSetNeutral)
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Pause & Ground", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MindSetNeutral)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(MindSetError)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text  = "Intervensi Krisis Cepat (24/7 Siaga)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MindSetError
-                    )
+    Scaffold(
+        containerColor = MindSetBackground,
+        topBar = {
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MindSetBackground),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Kembali",
+                            tint = MindSetNeutral
+                        )
+                    }
+                },
+                title = {
+                    Column {
+                        Text(
+                            text = "Pause & Ground",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MindSetNeutral
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(MindSetError)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Intervensi Krisis Cepat • 24/7 Siaga",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MindSetError
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    if (!uiState.isSessionCompleted) {
+                        FilledTonalIconButton(
+                            onClick = { isTimerRunning = !isTimerRunning },
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MindSetPrimaryContainer,
+                                contentColor = MindSetPrimary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = if (isTimerRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                contentDescription = if (isTimerRunning) "Jeda Timer" else "Lanjut Timer"
+                            )
+                        }
+                    }
                 }
-            }
-        }
-
-        // ── Main heading ──────────────────────────────────────
-        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-            Text(
-                text  = "Tarik Napas... Kamu Berada di Ruang yang Aman",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MindSetNeutral,
-                fontWeight = FontWeight.Bold
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text  = "Dorongan ini bersifat sementara dan akan mereda dalam 15–20 menit. Kami di sini menemanimu melewati gelombang ini selangkah demi langkah.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MindSetNeutralGrey
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // Timer badge
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.PlayCircle, contentDescription = null, tint = MindSetPrimary, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text  = "Box Breathing 4-4-4-4",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MindSetPrimary,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text  = "${formatTime(timeElapsed)} / ${formatTotal(totalTime)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MindSetNeutral,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
         }
-
-        Spacer(Modifier.height(24.dp))
-
-        // ── Breathing circle ──────────────────────────────────
-        Box(
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Outer glow ring
-            Box(
-                modifier = Modifier
-                    .size(180.dp)
-                    .scale(circleScale * 1.1f)
-                    .clip(CircleShape)
-                    .background(MindSetPrimaryContainer.copy(alpha = 0.5f))
-            )
-            // Inner circle
-            Box(
-                modifier = Modifier
-                    .size(150.dp)
-                    .scale(circleScale)
-                    .clip(CircleShape)
-                    .background(MindSetPrimary),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+            // ════════════════════════════════════════════════════════════════
+            // PHASE 3: Sesi Selesai — Pesan Penutup & Kembali ke Beranda
+            // ════════════════════════════════════════════════════════════════
+            if (uiState.isSessionCompleted) {
+                SessionCompletedSection(
+                    closingMessage = uiState.closingMessage,
+                    onBackToHome = onBack
+                )
+            } else {
+                // ── 1. Header Penenang ─────────────────────────────────────
+                Column {
                     Text(
-                        text  = breathText,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
+                        text = "Kamu Berada di Ruang yang Aman",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MindSetNeutral,
                         fontWeight = FontWeight.Bold
                     )
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        text  = "${breathCount}dtk",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White.copy(alpha = 0.8f)
+                        text = "Dorongan ini hanyalah gelombang sementara dan akan mereda dalam 15–20 menit. Ikuti ritme napas di bawah ini.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MindSetNeutralGrey,
+                        lineHeight = 18.sp
                     )
                 }
-            }
-        }
 
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text      = "Tarik perlahan lewat hidung... rasakan udara sejuk masuk mengisi rongga dadamu.",
-            style     = MaterialTheme.typography.bodySmall,
-            color     = MindSetNeutralGrey,
-            textAlign = TextAlign.Center,
-            modifier  = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 40.dp)
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        // ── Questionnaire ─────────────────────────────────────
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape  = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MindSetSurface)
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                Text(
-                    text  = "Kuesioner Singkat Intensitas",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MindSetNeutral,
-                    fontWeight = FontWeight.Bold
+                // ── 2. Kartu Box Breathing ────────────────────────────────
+                BreathingCard(
+                    breathText = breathText,
+                    breathGuide = breathGuide,
+                    breathCount = breathCount,
+                    circleScale = circleScale,
+                    timeElapsed = timeElapsed,
+                    totalTime = totalTime,
+                    formatTime = ::formatTime
                 )
-                Spacer(Modifier.height(16.dp))
 
-                // Question 1 - intensity
-                Text(
-                    text  = "1. Seberapa kuat dorongan/kecemasan saat ini?",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MindSetNeutral,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text  = "Pengukuran objektif membantu menurunkan aktivasi sistem alarm patuh.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MindSetNeutralGrey
-                )
-                Spacer(Modifier.height(10.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                // ── 3. Kuesioner Singkat CBT ──────────────────────────────
+                AnimatedVisibility(
+                    visible = !uiState.isReflectionPhase,
+                    exit = fadeOut() + shrinkVertically()
                 ) {
-                    val labels = listOf("1\nRingan", "2\nSedang", "3\nKuat", "4★\nSangat\nKuat", "5\nPuncak")
-                    labels.forEachIndexed { index, label ->
-                        val rating = index + 1
-                        val isSelected = intensityRating == rating
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { intensityRating = rating }
-                                .border(
-                                    1.dp,
-                                    if (isSelected) MindSetPrimary else MindSetDivider,
-                                    RoundedCornerShape(8.dp)
-                                ),
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) MindSetPrimaryContainer else MindSetSurface
+                    AssessmentCard(
+                        urgeLevel = uiState.urgeLevel,
+                        selectedTrigger = uiState.selectedTrigger,
+                        isLoading = uiState.isLoading,
+                        onUrgeLevelChange = { viewModel.updateUrgeLevel(it) },
+                        onTriggerSelect = { viewModel.selectTrigger(it) },
+                        onSubmit = { viewModel.submitEmergencyAssessment() }
+                    )
+                }
+
+                // ── 4. Hasil Rekomendasi CBT Dinamis ──────────────────────
+                val intervention = uiState.currentIntervention
+                AnimatedVisibility(
+                    visible = intervention != null && !uiState.isReflectionPhase,
+                    enter = fadeIn() + expandVertically()
+                ) {
+                    intervention?.let { result ->
+                        InterventionResultCard(
+                            result = result,
+                            retryCount = uiState.retryCount
+                        )
+                    }
+                }
+
+                // ── 5. Refleksi Menenangkan (kutipan) ─────────────────────
+                AnimatedVisibility(
+                    visible = !uiState.isReflectionPhase,
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    CalmingReflectionCard()
+                }
+
+                // ════════════════════════════════════════════════════════════
+                // PHASE 2: Form Refleksi Detail Krisis (muncul saat retryCount >= 3)
+                // ════════════════════════════════════════════════════════════
+                AnimatedVisibility(
+                    visible = uiState.isReflectionPhase,
+                    enter = fadeIn() + expandVertically()
+                ) {
+                    ReflectionFormCard(
+                        reflectionText = uiState.reflectionText,
+                        isLoading = uiState.isLoading,
+                        retryCount = uiState.retryCount,
+                        onReflectionTextChange = { viewModel.updateReflectionText(it) },
+                        onSubmitReflection = { viewModel.submitReflectionAndClose() }
+                    )
+                }
+
+                // ── Error Message ─────────────────────────────────────────
+                uiState.errorMessage?.let { error ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MindSetError.copy(alpha = 0.08f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Icon(
+                                Icons.Filled.ErrorOutline,
+                                contentDescription = null,
+                                tint = MindSetError,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
                             Text(
-                                text      = label,
-                                style     = MaterialTheme.typography.labelSmall,
-                                color     = if (isSelected) MindSetPrimary else MindSetNeutralGrey,
-                                textAlign = TextAlign.Center,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                modifier  = Modifier.padding(vertical = 8.dp, horizontal = 2.dp)
+                                text = error,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MindSetError
                             )
                         }
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                // ── 6. Aksi Penyelesaian & Hotline ────────────────────────
+                ActionButtonsSection(
+                    uiState = uiState,
+                    onSuccess = {
+                        viewModel.markSessionSuccess()
+                        onBack()
+                    },
+                    onRetry = { viewModel.retryWithAlternativeGuidance() },
+                    onDialHotline = ::dialHotline119
+                )
+            }
+        }
+    }
+}
 
-                // Question 2 - trigger
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-COMPOSABLES
+// ═══════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun BreathingCard(
+    breathText: String,
+    breathGuide: String,
+    breathCount: Int,
+    circleScale: Float,
+    timeElapsed: Int,
+    totalTime: Int,
+    formatTime: (Int) -> String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MindSetSurface),
+        border = BorderStroke(1.dp, MindSetDivider.copy(alpha = 0.6f))
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MindSetPrimaryContainer
+                ) {
+                    Text(
+                        text = "Box Breathing 4-4-4-4",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MindSetPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
                 Text(
-                    text  = "2. Apa pemicu utama saat ini?",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = "${formatTime(timeElapsed)} / ${formatTime(totalTime)}",
+                    style = MaterialTheme.typography.labelMedium,
                     color = MindSetNeutral,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text  = "Pilih 1 atau lebih faktor yang sering memicu respons somatik tubuhmu:",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MindSetNeutralGrey
-                )
-                Spacer(Modifier.height(10.dp))
+            }
 
-                val triggers = listOf(
-                    "😔 Kesepian/Sendirian",
-                    "📚 Stres Tugas/Tekanan",
-                    "🌙 Bosan Layar/Malam",
-                    "📱 Pemicu Visual Konten",
-                    "😴 Kelelahan Fisik"
+            Spacer(Modifier.height(16.dp))
+
+            Box(
+                modifier = Modifier.size(180.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(172.dp)
+                        .scale(circleScale * 1.08f)
+                        .clip(CircleShape)
+                        .background(MindSetPrimaryContainer.copy(alpha = 0.55f))
                 )
-                triggers.forEach { trigger ->
-                    val isSelected = selectedTrigger == trigger
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 3.dp)
-                            .clickable { selectedTrigger = trigger }
-                            .border(
-                                1.dp,
-                                if (isSelected) MindSetPrimary else MindSetDivider,
-                                RoundedCornerShape(8.dp)
-                            ),
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isSelected) MindSetPrimaryContainer else MindSetSurface
-                    ) {
+                Box(
+                    modifier = Modifier
+                        .size(138.dp)
+                        .scale(circleScale)
+                        .clip(CircleShape)
+                        .background(MindSetPrimary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text     = trigger,
-                            style    = MaterialTheme.typography.bodySmall,
-                            color    = if (isSelected) MindSetPrimary else MindSetNeutral,
-                            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                            text = breathText,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "$breathCount dtk",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.85f)
                         )
                     }
                 }
             }
+
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = breathGuide,
+                style = MaterialTheme.typography.bodySmall,
+                color = MindSetNeutralGrey,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
         }
+    }
+}
 
-        Spacer(Modifier.height(16.dp))
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AssessmentCard(
+    urgeLevel: Int,
+    selectedTrigger: String,
+    isLoading: Boolean,
+    onUrgeLevelChange: (Int) -> Unit,
+    onTriggerSelect: (String) -> Unit,
+    onSubmit: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MindSetSurface),
+        border = BorderStroke(1.dp, MindSetDivider.copy(alpha = 0.6f))
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Text(
+                text = "Evaluasi Kondisi Saat Ini",
+                style = MaterialTheme.typography.titleSmall,
+                color = MindSetNeutral,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Bantu sistem menyesuaikan langkah intervensi CBT untukmu.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MindSetNeutralGrey
+            )
 
-        // ── Quick Steps ───────────────────────────────────────
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape  = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MindSetSurface)
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                Text(
-                    text  = "Langkah Penanganan Cepat",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MindSetNeutral,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text  = "Rekomendasi Konsensus Berbasis CBT",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MindSetNeutralGrey
-                )
-                Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
 
-                val steps = listOf(
-                    Triple("1", "Basuh wajah dengan air dingin",
-                        "Merangsang refleks selam mamalia (mammalian dive reflex) untuk menstabilkan detak jantung."),
-                    Triple("2", "Pindah ruangan & beri jarak gadget",
-                        "Segera berdiri, tinggalkan smartphone di meja selama 10 menit, dan jalan/perhatikan ke ruang terbuka/jendela."),
-                    Triple("3", "Kontak Teman Pendamping / Konselor",
-                        "Kamu tidak sendirian. Berbicara singkat dengan orang terpercaya membantu memutus putaran pikiran obsesif.")
-                )
+            Text(
+                text = "1. Seberapa kuat dorongan saat ini?",
+                style = MaterialTheme.typography.bodySmall,
+                color = MindSetNeutral,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(10.dp))
 
-                steps.forEach { (num, title, desc) ->
-                    Row(modifier = Modifier.padding(vertical = 6.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(MindSetPrimaryContainer),
-                            contentAlignment = Alignment.Center
+            val scaleLabels = listOf("Ringan", "Sedang", "Kuat", "Tinggi", "Puncak")
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                scaleLabels.forEachIndexed { index, label ->
+                    val rating = index + 1
+                    val isSelected = urgeLevel == rating
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(64.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onUrgeLevelChange(rating) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) MindSetPrimary else MindSetBackground,
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (isSelected) MindSetPrimary else MindSetDivider
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Text(num, style = MaterialTheme.typography.labelMedium, color = MindSetPrimary, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(title, style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(2.dp))
-                            Text(desc, style = MaterialTheme.typography.bodySmall, color = MindSetNeutralGrey)
+                            Text(
+                                text = "$rating",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color.White else MindSetNeutral
+                            )
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = if (isSelected) Color.White.copy(alpha = 0.9f) else MindSetNeutralGrey
+                            )
                         }
                     }
                 }
             }
+
+            Spacer(Modifier.height(18.dp))
+
+            Text(
+                text = "2. Apa pemicu utama yang kamu rasakan?",
+                style = MaterialTheme.typography.bodySmall,
+                color = MindSetNeutral,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(10.dp))
+
+            val triggerOptions = listOf(
+                "😔 Kesepian",
+                "📚 Stres Tugas",
+                "🌙 Bosan",
+                "📱 Pemicu Visual",
+                "😴 Lelah"
+            )
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                triggerOptions.forEach { trigger ->
+                    val isSelected = selectedTrigger == trigger
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onTriggerSelect(trigger) },
+                        label = {
+                            Text(
+                                text = trigger,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MindSetPrimaryContainer,
+                            selectedLabelColor = MindSetPrimary,
+                            containerColor = MindSetBackground,
+                            labelColor = MindSetNeutral
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = MindSetDivider,
+                            selectedBorderColor = MindSetPrimary
+                        )
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = onSubmit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MindSetSecondary,
+                    contentColor = MindSetNeutral
+                )
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MindSetNeutral
+                    )
+                } else {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Tampilkan Panduan CBT Personal",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
+    }
+}
 
-        Spacer(Modifier.height(16.dp))
-
-        // ── Calming quote ─────────────────────────────────────
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape  = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MindSetPrimaryContainer)
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
+@Composable
+private fun InterventionResultCard(
+    result: com.example.mind_set.data.model.EmergencyIntervention,
+    retryCount: Int
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MindSetSurface),
+        border = BorderStroke(1.5.dp, MindSetPrimary.copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text  = "REFLEKSI MENENANGKAN",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = result.cbtTechniqueTitle,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MindSetPrimary,
-                    letterSpacing = 1.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MindSetPrimaryContainer
+                ) {
+                    Text(
+                        text = result.urgencyStatus,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MindSetPrimary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            if (retryCount > 0) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Panduan Alternatif #$retryCount • Fokus Regulasi Intensif",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MindSetTertiary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            result.recommendationSteps.forEachIndexed { idx, stepText ->
+                Row(
+                    modifier = Modifier.padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(MindSetPrimaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${idx + 1}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MindSetPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = stepText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MindSetNeutral,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalmingReflectionCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MindSetPrimaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "REFLEKSI MENENANGKAN",
+                style = MaterialTheme.typography.labelSmall,
+                color = MindSetPrimary,
+                letterSpacing = 1.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "\"Pikiranmu hanyalah gelombang di permukaan lautan kesadaran. Kamu tidak harus mengikuti setiap gelombang yang datang.\"",
+                style = MaterialTheme.typography.bodySmall,
+                color = MindSetNeutral,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 18.sp
+            )
+        }
+    }
+}
+
+/**
+ * Phase 2: Form Refleksi Detail Krisis
+ * Muncul setelah 3x retry panduan CBT tidak berhasil.
+ */
+@Composable
+private fun ReflectionFormCard(
+    reflectionText: String,
+    isLoading: Boolean,
+    retryCount: Int,
+    onReflectionTextChange: (String) -> Unit,
+    onSubmitReflection: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MindSetSurface),
+        border = BorderStroke(1.5.dp, MindSetSecondary.copy(alpha = 0.6f))
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = null,
+                    tint = MindSetSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Refleksi Detail Krisis",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MindSetNeutral,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(Modifier.height(8.dp))
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            Text(
+                text = "Kamu sudah mencoba $retryCount panduan dan dorongan masih terasa. " +
+                        "Tidak apa-apa — mari kita coba cara lain. Ceritakan dengan kata-katamu sendiri " +
+                        "apa yang sedang kamu rasakan atau alami saat ini.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MindSetNeutralGrey,
+                lineHeight = 18.sp
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            OutlinedTextField(
+                value = reflectionText,
+                onValueChange = onReflectionTextChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp),
+                placeholder = {
+                    Text(
+                        text = "Contoh: \"Saya merasa sangat bosan dan kesepian malam ini. " +
+                                "Pikiran saya terus kembali ke konten itu karena tidak ada hal lain " +
+                                "yang bisa mengalihkan...\"",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MindSetNeutralLight
+                    )
+                },
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MindSetPrimary,
+                    unfocusedBorderColor = MindSetDivider,
+                    focusedContainerColor = MindSetBackground.copy(alpha = 0.5f),
+                    unfocusedContainerColor = MindSetBackground.copy(alpha = 0.3f)
+                ),
+                textStyle = MaterialTheme.typography.bodySmall.copy(
+                    color = MindSetNeutral,
+                    lineHeight = 20.sp
+                )
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            Button(
+                onClick = onSubmitReflection,
+                enabled = reflectionText.isNotBlank() && !isLoading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MindSetPrimary,
+                    disabledContainerColor = MindSetPrimary.copy(alpha = 0.4f)
+                )
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                } else {
+                    Icon(
+                        Icons.Filled.Send,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.White
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Kirim & Selesaikan Sesi",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = "Ceritamu akan disimpan secara aman di perangkatmu dan tidak dibagikan tanpa izin.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MindSetNeutralGrey,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+/**
+ * Phase 3: Sesi Selesai — Pesan Penutup CBT Empatik
+ */
+@Composable
+private fun SessionCompletedSection(
+    closingMessage: String,
+    onBackToHome: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // Ikon check besar
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(MindSetTertiaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = "Sesi Selesai",
+                tint = MindSetTertiary,
+                modifier = Modifier.size(48.dp)
+            )
+        }
+
+        Text(
+            text = "Sesi Selesai",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MindSetNeutral,
+            fontWeight = FontWeight.Bold
+        )
+
+        // Pesan penutup empatik
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MindSetPrimaryContainer.copy(alpha = 0.6f))
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Favorite,
+                        contentDescription = null,
+                        tint = MindSetPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "PESAN UNTUK KAMU",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MindSetPrimary,
+                        letterSpacing = 1.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
                 Text(
-                    text  = "\"Pikiranmu adalah gelombang di lautan kesadaran. Kamu tidak harus membuat mereka menjadi...\"",
+                    text = closingMessage,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MindSetNeutral,
-                    fontWeight = FontWeight.Medium
+                    lineHeight = 22.sp
                 )
             }
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(8.dp))
 
-        // ── Success button ────────────────────────────────────
-        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        // Tombol kembali ke Beranda
+        Button(
+            onClick = onBackToHome,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MindSetTertiary)
+        ) {
+            Icon(
+                Icons.Filled.Home,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = Color.White
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "Kembali ke Beranda",
+                style = MaterialTheme.typography.titleSmall,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Text(
+            text = "Refleksimu telah disimpan dengan aman.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MindSetNeutralGrey,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * Bottom action buttons: Berhasil, Retry / Refleksi, Hotline
+ */
+@Composable
+private fun ActionButtonsSection(
+    uiState: com.example.mind_set.ui.emergency.EmergencyUiState,
+    onSuccess: () -> Unit,
+    onRetry: () -> Unit,
+    onDialHotline: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Tombol "Saya Berhasil"
+        if (!uiState.isReflectionPhase) {
             Button(
-                onClick  = onBack,
+                onClick = onSuccess,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                shape  = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MindSetTertiary)
             ) {
                 Text(
-                    text  = "🎉 Saya Berhasil Melewati Dorongan Ini!",
+                    text = "🎉 Saya Berhasil Melewati Dorongan Ini!",
                     style = MaterialTheme.typography.titleSmall,
                     color = Color.White,
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
 
-            Spacer(Modifier.height(10.dp))
+        // Tombol "Belum Mempan? Coba Panduan Lain" (hanya tampil saat retryCount < 3)
+        if (uiState.currentIntervention != null && !uiState.isReflectionPhase) {
+            OutlinedButton(
+                onClick = onRetry,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.2.dp, MindSetPrimary)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Refresh,
+                    contentDescription = null,
+                    tint = MindSetPrimary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = if (uiState.retryCount >= 2)
+                        "Masih Belum Mempan? Langkah Terakhir..."
+                    else
+                        "Belum Mempan? Coba Panduan Lain",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MindSetPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
 
+        // Hotline 119
+        if (uiState.retryCount >= 2 || uiState.isReflectionPhase) {
+            Button(
+                onClick = onDialHotline,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MindSetError.copy(alpha = 0.12f),
+                    contentColor = MindSetError
+                )
+            ) {
+                Text(
+                    text = "📞 Dorongan Masih Kuat? Hubungi Konselor 119",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        } else {
             TextButton(
-                onClick  = {},
+                onClick = onDialHotline,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text  = "📞 Butuh Kontak Konselor Darurat 119",
+                    text = "📞 Hubungi Layanan Konseling Darurat 119",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MindSetError
+                    color = MindSetError,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
-
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text      = "Layanan darurat terhubung langsung dengan Hotline Kemenkes RI (Bebas Pulsa)",
-                style     = MaterialTheme.typography.labelSmall,
-                color     = MindSetNeutralGrey,
-                textAlign = TextAlign.Center,
-                modifier  = Modifier.fillMaxWidth()
-            )
         }
 
-        Spacer(Modifier.height(24.dp))
+        Text(
+            text = "Terhubung langsung dengan Layanan SEJIWA / Kemenkes RI (Bebas Pulsa)",
+            style = MaterialTheme.typography.labelSmall,
+            color = MindSetNeutralGrey,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
