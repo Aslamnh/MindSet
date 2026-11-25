@@ -24,7 +24,10 @@ import androidx.compose.ui.unit.sp
 import com.example.mind_set.ui.theme.*
 
 @Composable
-fun HomeScreen(onEmergencyClick: () -> Unit) {
+fun HomeScreen(
+    currentUsername: String = "Alex",
+    onEmergencyClick: () -> Unit
+) {
     var selectedMood by remember { mutableStateOf("") }
 
     Column(
@@ -65,7 +68,12 @@ fun HomeScreen(onEmergencyClick: () -> Unit) {
                     .background(MindSetPrimaryLight),
                 contentAlignment = Alignment.Center
             ) {
-                Text("A", color = MindSetPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    text = if (currentUsername.isNotBlank()) currentUsername.take(1).uppercase() else "A",
+                    color = MindSetPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
             }
         }
 
@@ -76,7 +84,7 @@ fun HomeScreen(onEmergencyClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Halo, Alex 👋",
+                    text = "Halo, $currentUsername 👋",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MindSetNeutral,

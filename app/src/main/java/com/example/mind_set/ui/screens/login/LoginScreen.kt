@@ -28,11 +28,12 @@ import com.example.mind_set.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+fun LoginScreen(
+    viewModel: LoginViewModel,
+    onLoginSuccess: (String) -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
     var passwordVisible by remember { mutableStateOf(false) }
-    var rememberMe by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -54,7 +55,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "Login / Masuk",
+                text = if (uiState.isRegisterMode) "Daftar Akun Lokal" else "Login / Masuk",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MindSetNeutral,
@@ -82,7 +83,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     Text("🌿", fontSize = 24.sp)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text  = "PERJALANAN PEMULIHAN",
+                        text  = "AUTENTIKASI LOKAL & TERENKRIPSI",
                         style = MaterialTheme.typography.labelSmall,
                         color = MindSetPrimary,
                         fontWeight = FontWeight.Bold,
@@ -98,45 +99,95 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text  = "Ambil napas sejenak. Di sini tidak ada tuntutan, target tergesa, atau penilaian. Mulai langkahmu dengan tempo yang paling ramah untuk jiwamu.",
+                    text  = "Database lokal membedakan setiap akun dengan enkripsi hash SHA-256 yang aman di perangkat.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MindSetNeutralGrey
                 )
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("🌬️", fontSize = 16.sp)
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text  = "Hembuskan napas perlahan sebelum melanjutkan...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MindSetPrimary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(20.dp))
+
+        // ── Mode Switcher Tabs (Masuk vs Daftar) ─────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { viewModel.setMode(false) },
+                modifier = Modifier.weight(1f).height(42.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (!uiState.isRegisterMode) MindSetPrimary else MindSetSurface,
+                    contentColor = if (!uiState.isRegisterMode) Color.White else MindSetNeutral
+                )
+            ) {
+                Text("Masuk", fontWeight = FontWeight.Bold)
+            }
+            Button(
+                onClick = { viewModel.setMode(true) },
+                modifier = Modifier.weight(1f).height(42.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (uiState.isRegisterMode) MindSetPrimary else MindSetSurface,
+                    contentColor = if (uiState.isRegisterMode) Color.White else MindSetNeutral
+                )
+            ) {
+                Text("Daftar Akun Baru", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ── Error / Success Banners ──────────────────────────
+        if (uiState.errorMessage != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                colors = CardDefaults.cardColors(containerColor = MindSetError.copy(alpha = 0.15f))
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Error, contentDescription = null, tint = MindSetError, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(uiState.errorMessage!!, style = MaterialTheme.typography.bodySmall, color = MindSetError)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        if (uiState.successMessage != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                colors = CardDefaults.cardColors(containerColor = MindSetTertiaryLight)
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MindSetTertiary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(uiState.successMessage!!, style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
 
         // ── Form fields ──────────────────────────────────────
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
 
             Text(
-                text  = "Identitas Aman atau Email",
+                text  = "Username / Identitas Akun",
                 style = MaterialTheme.typography.labelMedium,
                 color = MindSetNeutralGrey
             )
             Spacer(Modifier.height(6.dp))
             OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
+                value = uiState.username,
+                onValueChange = { viewModel.updateUsername(it) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("nama@email.com", color = MindSetNeutralLight) },
+                placeholder = { Text("Contoh: alex_pratama", color = MindSetNeutralLight) },
                 leadingIcon  = {
-                    Icon(Icons.Filled.Email, contentDescription = null, tint = MindSetNeutralGrey)
+                    Icon(Icons.Filled.Person, contentDescription = null, tint = MindSetNeutralGrey)
                 },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine      = true,
+                singleLine = true,
                 shape  = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor   = MindSetPrimary,
@@ -155,8 +206,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             )
             Spacer(Modifier.height(6.dp))
             OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
+                value = uiState.password,
+                onValueChange = { viewModel.updatePassword(it) },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("••••••••••", color = MindSetNeutralLight) },
                 leadingIcon  = {
@@ -183,113 +234,39 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 )
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(24.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = rememberMe,
-                        onCheckedChange = { rememberMe = it },
-                        colors = CheckboxDefaults.colors(checkedColor = MindSetPrimary)
-                    )
-                    Text(
-                        text  = "Ingat saya di ponsel ini",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MindSetNeutral
-                    )
-                }
-                Text(
-                    text  = "Bantuan Sandi?",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MindSetPrimary,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.clickable { }
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── Primary login button ──────────────────────────
+            // ── Primary authenticate button ───────────────────
             Button(
-                onClick  = onLoginSuccess,
+                onClick  = {
+                    viewModel.authenticate { loggedInUser ->
+                        onLoginSuccess(loggedInUser)
+                    }
+                },
+                enabled  = !uiState.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
                 shape  = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MindSetPrimary)
             ) {
-                Text(
-                    text  = "Masuk ke Ruang Tenang →",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // ── Divider ───────────────────────────────────────
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = MindSetDivider)
-                Text(
-                    text     = "  AKSES LEMBUT & CEPAT  ",
-                    style    = MaterialTheme.typography.labelSmall,
-                    color    = MindSetNeutralGrey,
-                    letterSpacing = 1.sp
-                )
-                HorizontalDivider(modifier = Modifier.weight(1f), color = MindSetDivider)
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // ── Biometric + Google ────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick  = {},
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape  = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MindSetDivider)
-                ) {
-                    Text("👆", fontSize = 18.sp)
-                    Spacer(Modifier.width(6.dp))
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
                     Text(
-                        text  = "Sidik Jari",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MindSetNeutral
-                    )
-                }
-                OutlinedButton(
-                    onClick  = {},
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape  = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MindSetDivider)
-                ) {
-                    Text("G", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4285F4))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text  = "Akun Sandar",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MindSetNeutral
+                        text  = if (uiState.isRegisterMode) "Daftar & Buat Akun Lokal →" else "Masuk ke Ruang Tenang →",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(20.dp))
 
             // ── Anonymous mode ────────────────────────────────
             OutlinedButton(
-                onClick  = onLoginSuccess,
+                onClick  = { onLoginSuccess("Tamu Anonim") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -306,15 +283,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     fontWeight = FontWeight.Medium
                 )
             }
-
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text      = "Jelajahi modul relaksasi tanpa perlu mendaftarkan email sekarang.",
-                style     = MaterialTheme.typography.bodySmall,
-                color     = MindSetNeutralGrey,
-                textAlign = TextAlign.Center,
-                modifier  = Modifier.fillMaxWidth()
-            )
 
             Spacer(Modifier.height(16.dp))
 
@@ -335,14 +303,14 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     Spacer(Modifier.width(10.dp))
                     Column {
                         Text(
-                            text  = "Privasi Terapeutik 100% Terjaga",
+                            text  = "Enkripsi Hash SHA-256 Lokal",
                             style = MaterialTheme.typography.labelMedium,
                             color = MindSetNeutral,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text  = "Jurnal emosi, rekaman reframing, dan data pernapasanmu dienkripsi kuat secara lokal di gawai ini. Tidak ada data yang dibagikan ke pihak ketiga atau pengiklan.",
+                            text  = "Kredensial akun lokal dienkripsi menggunakan fungsi hash kriptografi sebelum disimpan ke Room DB perangkat. Memastikan pemisahan akun aman tanpa server eksternal.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MindSetNeutralGrey
                         )

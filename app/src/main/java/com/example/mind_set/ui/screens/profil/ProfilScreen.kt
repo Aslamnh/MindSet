@@ -34,6 +34,7 @@ import java.util.Locale
 
 @Composable
 fun ProfilScreen(
+    currentUsername: String = "Alex",
     emergencyHistory: List<EmergencyIntervention> = emptyList(),
     journalHistory: List<JournalItem> = emptyList()
 ) {
@@ -147,12 +148,17 @@ fun ProfilScreen(
                             .background(MindSetPrimaryLight),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("AP", fontSize = 20.sp, color = MindSetPrimary, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (currentUsername.isNotBlank()) currentUsername.take(2).uppercase() else "AP",
+                            fontSize = 20.sp,
+                            color = MindSetPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Alex Pratama",
+                            text = currentUsername,
                             style = MaterialTheme.typography.titleMedium,
                             color = MindSetNeutral,
                             fontWeight = FontWeight.Bold
