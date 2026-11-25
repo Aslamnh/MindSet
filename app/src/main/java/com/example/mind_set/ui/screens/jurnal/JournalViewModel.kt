@@ -39,10 +39,6 @@ class JournalViewModel(
         _uiState.update { it.copy(currentTab = tab, errorMessage = null, successMessage = null) }
     }
 
-    fun setSelectedDay(dayIndex: Int) {
-        _uiState.update { it.copy(selectedDay = dayIndex) }
-    }
-
     fun selectMood(mood: String) {
         _uiState.update { it.copy(selectedMood = mood) }
     }

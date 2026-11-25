@@ -7,7 +7,6 @@ enum class JournalTab { FORM, HISTORY }
 data class JournalUiState(
     val journals: List<JournalItem> = emptyList(),
     val currentTab: JournalTab = JournalTab.FORM,
-    val selectedDay: Int = 3,
     val selectedMood: String = "Tenang",
     val triggerText: String = "",
     val reframingText: String = "",

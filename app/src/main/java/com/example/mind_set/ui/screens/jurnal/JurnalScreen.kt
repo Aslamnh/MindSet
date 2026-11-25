@@ -33,8 +33,6 @@ fun JurnalScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    val days   = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
-    val dates  = listOf(20, 21, 22, 23, 24, 25, 26)
     val moods  = listOf("😌 Tenang", "😰 Cemas", "😤 Gelisah", "😐 Bosan", "😍 Tertarik")
     val tags   = listOf("#Kelelahan", "#Sendirian", "#StresKerja", "#MediaSosial", "#DukunganTeman")
 
@@ -53,7 +51,7 @@ fun JurnalScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Mind-Set", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey)
-                Text("Jurnal Pemulihan", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+                Text("Jurnal", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
             }
             Icon(Icons.Filled.Notifications, contentDescription = null, tint = MindSetNeutralGrey)
         }
@@ -66,7 +64,7 @@ fun JurnalScreen(
             Icon(Icons.Filled.Lock, contentDescription = null, tint = MindSetTertiary, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
             Text(
-                text  = "Enkripsi Lokal Aktif (Offline Ready Room DB)",
+                text  = "Enkripsi Lokal Aktif (Offline Ready)",
                 style = MaterialTheme.typography.labelSmall,
                 color = MindSetTertiary,
                 fontWeight = FontWeight.Medium
@@ -77,14 +75,14 @@ fun JurnalScreen(
 
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             Text(
-                text  = "Jurnal Harian & CBT AI",
+                text  = "Jurnal Pemulihan Harian",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MindSetNeutral,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text  = "Tulis tanpa penghakiman. Dapatkan analisis CBT empatik seketika.",
+                text  = "Tulis tanpa penghakiman. Semua data tersimpan aman dan privat di perangkatmu.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MindSetNeutralGrey
             )
@@ -164,8 +162,6 @@ fun JurnalScreen(
             JournalTab.FORM -> {
                 JournalFormContent(
                     uiState = uiState,
-                    days = days,
-                    dates = dates,
                     moods = moods,
                     tags = tags,
                     viewModel = viewModel
@@ -187,14 +183,16 @@ fun JurnalScreen(
 @Composable
 fun JournalFormContent(
     uiState: JournalUiState,
-    days: List<String>,
-    dates: List<Int>,
     moods: List<String>,
     tags: List<String>,
     viewModel: JournalViewModel
 ) {
+    val days   = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
+    val dates  = listOf(20, 21, 22, 23, 24, 25, 26)
+    val todayIndex = 3 // Kamis (index 3, tanggal 23)
+
     Column(modifier = Modifier.fillMaxWidth()) {
-        // ── Week date picker ──────────────────────────────────
+        // ── Week date boxes card (Read-Only / Non-editable) ──
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -208,9 +206,9 @@ fun JournalFormContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Pilih Tanggal Jurnal", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+                    Text("Hari ini: Kamis, 24 Oktober 2026", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
                     Surface(shape = RoundedCornerShape(12.dp), color = MindSetTertiaryLight) {
-                        Text("⭐ Clean Streak Aktif", style = MaterialTheme.typography.labelSmall, color = MindSetTertiary, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        Text("⭐ 14 Hari Bersih", style = MaterialTheme.typography.labelSmall, color = MindSetTertiary, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -219,11 +217,11 @@ fun JournalFormContent(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     days.forEachIndexed { index, day ->
-                        val isSelected = uiState.selectedDay == index
-                        val isCompleted = index <= uiState.selectedDay
+                        val isSelected = index == todayIndex
+                        val isCompleted = index < todayIndex
                         Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.clickable { viewModel.setSelectedDay(index) }
+                            horizontalAlignment = Alignment.CenterHorizontally
+                            // Read-only: No clickable modifier!
                         ) {
                             Text(
                                 text  = day,
@@ -284,7 +282,7 @@ fun JournalFormContent(
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text("Refleksi Kondisi & Pemicu Godaan", style = MaterialTheme.typography.titleSmall, color = MindSetNeutral, fontWeight = FontWeight.Bold)
-                        Text("Identifikasi emosi & pikiran otomatis berbasis CBT", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey)
+                        Text("Langkah 1 Identifikasi emosi & pikiran otomatis", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey)
                     }
                 }
 
@@ -350,7 +348,7 @@ fun JournalFormContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(90.dp),
-                    placeholder = { Text("Contoh: Merasa lelah setelah jam kerja dan tergoda membuka media sosial...", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
+                    placeholder = { Text("Contoh: Merasa lelah setelah jam kerja dan tergoda membuka media sosial/konten gelap...", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
                     shape  = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor      = MindSetPrimary,
@@ -374,7 +372,7 @@ fun JournalFormContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(80.dp),
-                    placeholder = { Text("Tulis sudut pandang alternatif yang berlandaskan fakta & welas asih...", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
+                    placeholder = { Text("Klik sudut pandang 'alternatif' yang berlandaskan fakta dan kebaikan diri...", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
                     shape  = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor      = MindSetPrimary,
@@ -447,7 +445,7 @@ fun JournalFormContent(
                     } else {
                         Icon(Icons.Filled.Save, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Simpan & Dapatkan Analisis CBT AI", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Simpan & Dapatkan Respons CBT AI", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
