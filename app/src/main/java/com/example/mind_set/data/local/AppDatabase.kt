@@ -5,20 +5,22 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.mind_set.data.local.dao.EmergencyLogDao
+import com.example.mind_set.data.local.dao.JournalDao
 import com.example.mind_set.data.local.entity.EmergencyLogEntity
+import com.example.mind_set.data.local.entity.JournalEntity
 
 @Database(
     entities = [
-        EmergencyLogEntity::class
-        // Nanti tinggal tambahkan: JournalEntity::class, StreakEntity::class
+        EmergencyLogEntity::class,
+        JournalEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun emergencyLogDao(): EmergencyLogDao
-    // Nanti tinggal tambahkan: abstract fun journalDao(): JournalDao
+    abstract fun journalDao(): JournalDao
 
     companion object {
         @Volatile

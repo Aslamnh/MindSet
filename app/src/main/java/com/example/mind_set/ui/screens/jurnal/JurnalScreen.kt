@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -19,19 +20,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mind_set.data.model.JournalItem
 import com.example.mind_set.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JurnalScreen() {
-    var selectedDay by remember { mutableStateOf(3) } // Kamis (index 3)
-    var selectedMood by remember { mutableStateOf("Tenang") }
-    var triggerText by remember { mutableStateOf("") }
-    var reframingText by remember { mutableStateOf("") }
-    var selectedTags by remember { mutableStateOf(setOf<String>()) }
+fun JurnalScreen(
+    viewModel: JournalViewModel
+) {
+    val uiState by viewModel.uiState.collectAsState()
 
-    val days   = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
-    val dates  = listOf(20, 21, 22, 23, 24, 25, 26)
     val moods  = listOf("😌 Tenang", "😰 Cemas", "😤 Gelisah", "😐 Bosan", "😍 Tertarik")
     val tags   = listOf("#Kelelahan", "#Sendirian", "#StresKerja", "#MediaSosial", "#DukunganTeman")
 
@@ -50,7 +51,7 @@ fun JurnalScreen() {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Mind-Set", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey)
-                Text("Jurnal",   style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+                Text("Jurnal", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
             }
             Icon(Icons.Filled.Notifications, contentDescription = null, tint = MindSetNeutralGrey)
         }
@@ -87,9 +88,111 @@ fun JurnalScreen() {
             )
         }
 
+        Spacer(Modifier.height(14.dp))
+
+        // ── Tab selector (Form vs History & Calendar) ──────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { viewModel.setTab(JournalTab.FORM) },
+                modifier = Modifier.weight(1f).height(42.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (uiState.currentTab == JournalTab.FORM) MindSetPrimary else MindSetSurface,
+                    contentColor = if (uiState.currentTab == JournalTab.FORM) Color.White else MindSetNeutral
+                )
+            ) {
+                Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Tulis Jurnal", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            }
+
+            Button(
+                onClick = { viewModel.setTab(JournalTab.HISTORY) },
+                modifier = Modifier.weight(1f).height(42.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (uiState.currentTab == JournalTab.HISTORY) MindSetPrimary else MindSetSurface,
+                    contentColor = if (uiState.currentTab == JournalTab.HISTORY) Color.White else MindSetNeutral
+                )
+            ) {
+                Icon(Icons.Filled.History, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Riwayat (${uiState.journals.size})", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            }
+        }
+
         Spacer(Modifier.height(16.dp))
 
-        // ── Week date picker ──────────────────────────────────
+        // Error / Success Banners
+        if (uiState.errorMessage != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = MindSetError.copy(alpha = 0.15f))
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Error, contentDescription = null, tint = MindSetError, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(uiState.errorMessage!!, style = MaterialTheme.typography.bodySmall, color = MindSetError)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        if (uiState.successMessage != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = MindSetTertiaryLight)
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MindSetTertiary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(uiState.successMessage!!, style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // ── Tab Content ──────────────────────────────────────────────
+        when (uiState.currentTab) {
+            JournalTab.FORM -> {
+                JournalFormContent(
+                    uiState = uiState,
+                    moods = moods,
+                    tags = tags,
+                    viewModel = viewModel
+                )
+            }
+            JournalTab.HISTORY -> {
+                JournalHistoryContent(
+                    journals = uiState.journals,
+                    onDelete = { viewModel.deleteJournal(it) },
+                    onAddNew = { viewModel.setTab(JournalTab.FORM) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun JournalFormContent(
+    uiState: JournalUiState,
+    moods: List<String>,
+    tags: List<String>,
+    viewModel: JournalViewModel
+) {
+    val days   = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
+    val dates  = listOf(20, 21, 22, 23, 24, 25, 26)
+    val todayIndex = 3 // Kamis (index 3, tanggal 23)
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // ── Week date boxes card (Read-Only / Non-editable) ──
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -105,7 +208,7 @@ fun JurnalScreen() {
                 ) {
                     Text("Hari ini: Kamis, 24 Oktober 2026", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
                     Surface(shape = RoundedCornerShape(12.dp), color = MindSetTertiaryLight) {
-                        Text("⭐ 5 Hari Sadar Penuh", style = MaterialTheme.typography.labelSmall, color = MindSetTertiary, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        Text("⭐ 14 Hari Bersih", style = MaterialTheme.typography.labelSmall, color = MindSetTertiary, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -114,11 +217,11 @@ fun JurnalScreen() {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     days.forEachIndexed { index, day ->
-                        val isSelected = selectedDay == index
-                        val isCompleted = index < 3
+                        val isSelected = index == todayIndex
+                        val isCompleted = index < todayIndex
                         Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.clickable { selectedDay = index }
+                            horizontalAlignment = Alignment.CenterHorizontally
+                            // Read-only: No clickable modifier!
                         ) {
                             Text(
                                 text  = day,
@@ -194,10 +297,10 @@ fun JurnalScreen() {
                 ) {
                     moods.take(3).forEach { mood ->
                         val name = mood.substringAfter(" ")
-                        val isSelected = selectedMood == name
+                        val isSelected = uiState.selectedMood == name
                         Surface(
                             modifier = Modifier
-                                .clickable { selectedMood = name }
+                                .clickable { viewModel.selectMood(name) }
                                 .border(1.dp, if (isSelected) MindSetPrimary else MindSetDivider, RoundedCornerShape(20.dp)),
                             shape = RoundedCornerShape(20.dp),
                             color = if (isSelected) MindSetPrimaryContainer else Color.Transparent
@@ -218,10 +321,10 @@ fun JurnalScreen() {
                 ) {
                     moods.drop(3).forEach { mood ->
                         val name = mood.substringAfter(" ")
-                        val isSelected = selectedMood == name
+                        val isSelected = uiState.selectedMood == name
                         Surface(
                             modifier = Modifier
-                                .clickable { selectedMood = name }
+                                .clickable { viewModel.selectMood(name) }
                                 .border(1.dp, if (isSelected) MindSetPrimary else MindSetDivider, RoundedCornerShape(20.dp)),
                             shape = RoundedCornerShape(20.dp),
                             color = if (isSelected) MindSetPrimaryContainer else Color.Transparent
@@ -240,8 +343,8 @@ fun JurnalScreen() {
                 Text("Apa yang memicu dorongan atau pikiran negatif hari ini?", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(
-                    value = triggerText,
-                    onValueChange = { triggerText = it },
+                    value = uiState.triggerText,
+                    onValueChange = { viewModel.updateTriggerText(it) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(90.dp),
@@ -264,8 +367,8 @@ fun JurnalScreen() {
                 }
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(
-                    value = reframingText,
-                    onValueChange = { reframingText = it },
+                    value = uiState.reframingText,
+                    onValueChange = { viewModel.updateReframingText(it) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(80.dp),
@@ -288,12 +391,10 @@ fun JurnalScreen() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     tags.take(3).forEach { tag ->
-                        val isSelected = selectedTags.contains(tag)
+                        val isSelected = uiState.selectedTags.contains(tag)
                         Surface(
                             modifier = Modifier
-                                .clickable {
-                                    selectedTags = if (isSelected) selectedTags - tag else selectedTags + tag
-                                }
+                                .clickable { viewModel.toggleTag(tag) }
                                 .border(1.dp, if (isSelected) MindSetPrimary else MindSetDivider, RoundedCornerShape(20.dp)),
                             shape = RoundedCornerShape(20.dp),
                             color = if (isSelected) MindSetPrimaryContainer else Color.Transparent
@@ -313,12 +414,10 @@ fun JurnalScreen() {
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     tags.drop(3).forEach { tag ->
-                        val isSelected = selectedTags.contains(tag)
+                        val isSelected = uiState.selectedTags.contains(tag)
                         Surface(
                             modifier = Modifier
-                                .clickable {
-                                    selectedTags = if (isSelected) selectedTags - tag else selectedTags + tag
-                                }
+                                .clickable { viewModel.toggleTag(tag) }
                                 .border(1.dp, if (isSelected) MindSetPrimary else MindSetDivider, RoundedCornerShape(20.dp)),
                             shape = RoundedCornerShape(20.dp),
                             color = if (isSelected) MindSetPrimaryContainer else Color.Transparent
@@ -335,14 +434,19 @@ fun JurnalScreen() {
 
                 Spacer(Modifier.height(16.dp))
                 Button(
-                    onClick  = {},
+                    onClick  = { viewModel.saveJournal {} },
+                    enabled  = !uiState.isLoading,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape    = RoundedCornerShape(12.dp),
                     colors   = ButtonDefaults.buttonColors(containerColor = MindSetPrimary)
                 ) {
-                    Icon(Icons.Filled.Save, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Simpan & Dapatkan Respons CBT AI", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.Save, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Simpan & Dapatkan Respons CBT AI", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
@@ -364,58 +468,189 @@ fun JurnalScreen() {
                 Text("\"Keinginan kambuh adalah gelombang alami. Kamu tidak perlu melawannya dengan keras hati; cukup perhatikan dan biarkan ia mereda.\"", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.Medium)
             }
         }
+    }
+}
 
-        Spacer(Modifier.height(16.dp))
-
-        // ── Recent entry ──────────────────────────────────────
+@Composable
+fun JournalHistoryContent(
+    journals: List<JournalItem>,
+    onDelete: (Int) -> Unit,
+    onAddNew: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // ── Calendar Heatmap Mock / Summary Card ──────────────
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape  = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MindSetSurface)
         ) {
-            Column(modifier = Modifier.padding(18.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Riwayat Refleksi Terakhir", style = MaterialTheme.typography.titleSmall, color = MindSetNeutral, fontWeight = FontWeight.Bold)
-                    Text("Lihat Semua", style = MaterialTheme.typography.labelMedium, color = MindSetPrimary, fontWeight = FontWeight.Medium)
+                    Column {
+                        Text("KALENDER JURNAL", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+                        Text("Oktober 2026", style = MaterialTheme.typography.titleSmall, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+                    }
+                    Surface(shape = RoundedCornerShape(12.dp), color = MindSetPrimaryContainer) {
+                        Text("${journals.size} Catatan Tersimpan", style = MaterialTheme.typography.labelSmall, color = MindSetPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
-                HorizontalDivider(color = MindSetDivider)
-                Spacer(Modifier.height(10.dp))
+                Text("Setiap titik hijau melambangkan refleksi harian yang sukses dicatat dan dianalisis.", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralGrey)
+            }
+        }
 
-                // Kemarin entry
-                Row {
-                    Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(MindSetTertiary).align(Alignment.Top).padding(top = 5.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Kemarin, 21.15 WIB", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey)
-                            Surface(shape = RoundedCornerShape(10.dp), color = MindSetSecondaryLight) {
-                                Text("Tantangan Teratasi", style = MaterialTheme.typography.labelSmall, color = MindSetNeutral, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
-                            }
+        // ── List Header ───────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Riwayat Kronologis Jurnal", style = MaterialTheme.typography.titleSmall, color = MindSetNeutral, fontWeight = FontWeight.Bold)
+            TextButton(onClick = onAddNew) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Buat Baru", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        if (journals.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MindSetSurface)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("📖", fontSize = 36.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Belum Ada Catatan Jurnal", style = MaterialTheme.typography.titleSmall, color = MindSetNeutral, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Mulai tulis jurnal pertamamu untuk melacak emosi & mendapatkan respons CBT AI.", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralGrey, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = onAddNew,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MindSetPrimary)
+                    ) {
+                        Text("Tulis Jurnal Sekarang", color = Color.White)
+                    }
+                }
+            }
+        } else {
+            journals.forEach { item ->
+                JournalItemCard(item = item, onDelete = { onDelete(item.id) })
+            }
+        }
+    }
+}
+
+@Composable
+fun JournalItemCard(item: JournalItem, onDelete: () -> Unit) {
+    val dateFormat = SimpleDateFormat("EEEE, dd MMM yyyy • HH:mm", Locale.forLanguageTag("id-ID"))
+    val dateString = dateFormat.format(Date(item.createdAt))
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MindSetSurface)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(dateString, style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey)
+                    Spacer(Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Mood: ${item.mood}", style = MaterialTheme.typography.labelMedium, color = MindSetPrimary, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (item.status == "Tantangan Teratasi") MindSetSecondaryLight else MindSetPrimaryContainer
+                    ) {
+                        Text(
+                            text = item.status,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MindSetNeutral,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Filled.DeleteOutline, contentDescription = "Hapus", tint = MindSetError, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = MindSetDivider)
+            Spacer(Modifier.height(10.dp))
+
+            Text("PENGALAMAN / PEMICU:", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey, letterSpacing = 0.5.sp)
+            Spacer(Modifier.height(2.dp))
+            Text("\"${item.triggerText}\"", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.Medium)
+
+            if (item.reframingText.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text("REFRAMING CBT:", style = MaterialTheme.typography.labelSmall, color = MindSetSecondary, letterSpacing = 0.5.sp)
+                Spacer(Modifier.height(2.dp))
+                Text("\"${item.reframingText}\"", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral)
+            }
+
+            if (item.tags.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    item.tags.forEach { tag ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MindSetBackground
+                        ) {
+                            Text(
+                                text = tag,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MindSetNeutralGrey,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
                         }
-                        Spacer(Modifier.height(4.dp))
-                        Text("CATATANMU:", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey, letterSpacing = 0.5.sp)
-                        Spacer(Modifier.height(2.dp))
-                        Text("\"Hampir tergelincir buka aplikasi tarangtarang untuk bersungguh-sungguh. Memilih minum air putih dan mendengarkan musik santai.\"", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral)
-                        Spacer(Modifier.height(6.dp))
+                    }
+                }
+            }
+
+            if (item.aiResponse.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MindSetPrimaryContainer.copy(alpha = 0.6f)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.SmartToy, contentDescription = null, tint = MindSetPrimary, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Respons CBT AI (Didukung Fallback Lokal)", style = MaterialTheme.typography.labelSmall, color = MindSetPrimary, fontWeight = FontWeight.Medium)
+                            Icon(Icons.Filled.SmartToy, contentDescription = null, tint = MindSetPrimary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Analisis & Umpan Balik CBT AI", style = MaterialTheme.typography.labelMedium, color = MindSetPrimary, fontWeight = FontWeight.Bold)
                         }
-                        Spacer(Modifier.height(4.dp))
-                        Text("Keputusan bijak mengalihkan perhatian fisik! Mengganti respons impulsif ke kebiasaan netral adalah kemenangan kecil yang layak dirayakan. Keberhasilan menunda impuls 10 menit membukti...", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralGrey)
+                        Spacer(Modifier.height(6.dp))
+                        Text(item.aiResponse, style = MaterialTheme.typography.bodySmall, color = MindSetNeutral)
                     }
                 }
             }
         }
-
-        Spacer(Modifier.height(24.dp))
     }
 }

@@ -14,11 +14,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.mind_set.data.local.AppDatabase
 import com.example.mind_set.data.model.EmergencyIntervention
+import com.example.mind_set.data.model.JournalItem
 import com.example.mind_set.data.repository.DefaultEmergencyRepository
+import com.example.mind_set.data.repository.DefaultJournalRepository
 import com.example.mind_set.data.repository.EmergencyRepository
+import com.example.mind_set.data.repository.JournalRepository
 import com.example.mind_set.ui.components.BottomNavBar
 import com.example.mind_set.ui.emergency.EmergencyViewModel
 import com.example.mind_set.ui.screens.home.HomeScreen
+import com.example.mind_set.ui.screens.jurnal.JournalViewModel
 import com.example.mind_set.ui.screens.jurnal.JurnalScreen
 import com.example.mind_set.ui.screens.login.LoginScreen
 import com.example.mind_set.ui.screens.pauseground.PauseGroundScreen
@@ -32,6 +36,7 @@ fun MindSetNavGraph() {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     val emergencyRepository = remember { DefaultEmergencyRepository(database.emergencyLogDao()) }
+    val journalRepository = remember { DefaultJournalRepository(database.journalDao()) }
 
     NavHost(navController = rootNavController, startDestination = "login") {
 
@@ -46,6 +51,7 @@ fun MindSetNavGraph() {
         composable("main") {
             MainScreen(
                 emergencyRepository = emergencyRepository,
+                journalRepository = journalRepository,
                 onNavigateToPauseGround = {
                     rootNavController.navigate("pause_ground")
                 }
@@ -67,11 +73,16 @@ fun MindSetNavGraph() {
 @Composable
 fun MainScreen(
     emergencyRepository: EmergencyRepository,
+    journalRepository: JournalRepository,
     onNavigateToPauseGround: () -> Unit
 ) {
     val bottomNavController = rememberNavController()
     val emergencyHistory: List<EmergencyIntervention> by emergencyRepository
         .getEmergencyHistory()
+        .collectAsState(initial = emptyList())
+
+    val journalHistory: List<JournalItem> by journalRepository
+        .getAllJournals()
         .collectAsState(initial = emptyList())
 
     Scaffold(
@@ -86,13 +97,19 @@ fun MainScreen(
                 HomeScreen(onEmergencyClick = onNavigateToPauseGround)
             }
             composable("jurnal") {
-                JurnalScreen()
+                val journalViewModel: JournalViewModel = viewModel(
+                    factory = JournalViewModel.provideFactory(journalRepository)
+                )
+                JurnalScreen(viewModel = journalViewModel)
             }
             composable("progress") {
                 ProgressScreen()
             }
             composable("profil") {
-                ProfilScreen(emergencyHistory = emergencyHistory)
+                ProfilScreen(
+                    emergencyHistory = emergencyHistory,
+                    journalHistory = journalHistory
+                )
             }
         }
     }
