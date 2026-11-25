@@ -21,11 +21,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mind_set.data.progress.*
 import com.example.mind_set.ui.theme.*
 
 @Composable
 fun ProfilScreen() {
     var selectedTab   by remember { mutableStateOf(0) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val progressRepo = remember { ProgressRepository.get(context) }
+    val progressState by progressRepo.state.collectAsState()
+    LaunchedEffect(Unit) { progressRepo.initialize() }
     var biometricEnabled by remember { mutableStateOf(true) }
     var encryptionEnabled by remember { mutableStateOf(true) }
     val tabs = listOf("Semua", "Jurnal", "Kuis/Darurat", "Milestone")
@@ -104,7 +109,7 @@ fun ProfilScreen() {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    ProfileStat("42", "Hari Bersih\nKumulatif")
+                    ProfileStat("${progressState.successDays}", "Hari Bersih\nKumulatif")
                     Box(modifier = Modifier.width(1.dp).height(40.dp).background(MindSetDivider))
                     ProfileStat("68", "Refleksi\nTotal")
                     Box(modifier = Modifier.width(1.dp).height(40.dp).background(MindSetDivider))

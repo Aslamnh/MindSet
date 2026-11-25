@@ -20,12 +20,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mind_set.data.progress.*
 import com.example.mind_set.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(onEmergencyClick: () -> Unit) {
     var selectedMood by remember { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val progressRepo = remember { ProgressRepository.get(context) }
+    val progressState by progressRepo.state.collectAsState()
+    LaunchedEffect(Unit) { progressRepo.initialize() }
 
     Column(
         modifier = Modifier
@@ -192,7 +197,7 @@ fun HomeScreen(onEmergencyClick: () -> Unit) {
                     Text("🏆", fontSize = 20.sp)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text  = "Clean Streak: 14 Hari Bersih",
+                        text  = "Clean Streak: ${progressState.currentStreak} Hari Bersih",
                         style = MaterialTheme.typography.titleSmall,
                         color = MindSetNeutral,
                         fontWeight = FontWeight.Bold,
@@ -219,7 +224,7 @@ fun HomeScreen(onEmergencyClick: () -> Unit) {
                         color = MindSetNeutralGrey
                     )
                     Text(
-                        text  = "14/21 Hari (66%)",
+                        text  = "${progressState.currentStreak}/21 Hari (${(progressState.currentStreak.coerceAtMost(21) / 21f * 100).toInt()}%)",
                         style = MaterialTheme.typography.labelSmall,
                         color = MindSetNeutral,
                         fontWeight = FontWeight.SemiBold
@@ -227,7 +232,7 @@ fun HomeScreen(onEmergencyClick: () -> Unit) {
                 }
                 Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(
-                    progress = { 0.66f },
+                    progress = { (progressState.currentStreak.coerceAtMost(21) / 21f).coerceIn(0f, 1f) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
@@ -241,7 +246,7 @@ fun HomeScreen(onEmergencyClick: () -> Unit) {
                     color  = MindSetPrimaryContainer
                 ) {
                     Text(
-                        text     = "\"Konsistensimu membentuk jalur saraf baru yang lebih sehat.\"",
+                        text     = "\"${ProgressCalculator.appreciationMessage(progressState.currentStreak)}\"",
                         style    = MaterialTheme.typography.bodySmall,
                         color    = MindSetPrimary,
                         fontWeight = FontWeight.Medium,

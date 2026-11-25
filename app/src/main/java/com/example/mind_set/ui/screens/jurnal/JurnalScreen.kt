@@ -19,7 +19,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mind_set.data.progress.*
 import com.example.mind_set.ui.theme.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,6 +31,13 @@ fun JurnalScreen() {
     var triggerText by remember { mutableStateOf("") }
     var reframingText by remember { mutableStateOf("") }
     var selectedTags by remember { mutableStateOf(setOf<String>()) }
+    var dayStatus by remember { mutableStateOf(CheckInStatus.SUCCESS) }
+    var saveMessage by remember { mutableStateOf<String?>(null) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val progressRepo = remember { ProgressRepository.get(context) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { progressRepo.initialize() }
 
     val days   = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
     val dates  = listOf(20, 21, 22, 23, 24, 25, 26)
@@ -333,9 +342,43 @@ fun JurnalScreen() {
                     }
                 }
 
+                Spacer(Modifier.height(14.dp))
+                Text("Status Hari Ini (untuk Progress & Streak)", style = MaterialTheme.typography.labelMedium, color = MindSetNeutralGrey)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(CheckInStatus.SUCCESS to "✅ Berhasil menahan", CheckInStatus.RELAPSE to "💙 Mengalami kambuh").forEach { (st, label) ->
+                        val selected = dayStatus == st
+                        Surface(
+                            modifier = Modifier
+                                .clickable { dayStatus = st }
+                                .border(1.dp, if (selected) MindSetPrimary else MindSetDivider, RoundedCornerShape(20.dp)),
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (selected) MindSetPrimaryContainer else Color.Transparent
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (selected) MindSetPrimary else MindSetNeutralGrey,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
                 Spacer(Modifier.height(16.dp))
                 Button(
-                    onClick  = {},
+                    onClick  = {
+                        scope.launch {
+                            progressRepo.recordOutcome(
+                                date = ProgressCalculator.todayString(),
+                                status = dayStatus,
+                                intensity = null,
+                                triggers = selectedTags.joinToString(","),
+                                note = triggerText
+                            )
+                            saveMessage = "Jurnal & status hari ini tersimpan."
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape    = RoundedCornerShape(12.dp),
                     colors   = ButtonDefaults.buttonColors(containerColor = MindSetPrimary)
@@ -343,6 +386,10 @@ fun JurnalScreen() {
                     Icon(Icons.Filled.Save, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Simpan & Dapatkan Respons CBT AI", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                }
+                saveMessage?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MindSetTertiary, fontWeight = FontWeight.Medium)
                 }
             }
         }
