@@ -6,21 +6,25 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.mind_set.data.local.dao.EmergencyLogDao
 import com.example.mind_set.data.local.dao.JournalDao
+import com.example.mind_set.data.local.dao.UserDao
 import com.example.mind_set.data.local.entity.EmergencyLogEntity
 import com.example.mind_set.data.local.entity.JournalEntity
+import com.example.mind_set.data.local.entity.UserEntity
 
 @Database(
     entities = [
         EmergencyLogEntity::class,
-        JournalEntity::class
+        JournalEntity::class,
+        UserEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun emergencyLogDao(): EmergencyLogDao
     abstract fun journalDao(): JournalDao
+    abstract fun userDao(): UserDao
 
     companion object {
         @Volatile
