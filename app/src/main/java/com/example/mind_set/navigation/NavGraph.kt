@@ -17,6 +17,9 @@ import androidx.navigation.navArgument
 import com.example.mind_set.data.local.AppDatabase
 import com.example.mind_set.data.model.EmergencyIntervention
 import com.example.mind_set.data.model.JournalItem
+import com.example.mind_set.data.remote.GeminiAiService
+import com.example.mind_set.data.repository.AiRecommendationRepository
+import com.example.mind_set.data.repository.DefaultAiRecommendationRepository
 import com.example.mind_set.data.repository.DefaultEmergencyRepository
 import com.example.mind_set.data.repository.DefaultJournalRepository
 import com.example.mind_set.data.repository.DefaultUserRepository
@@ -25,6 +28,7 @@ import com.example.mind_set.data.repository.JournalRepository
 import com.example.mind_set.ui.components.BottomNavBar
 import com.example.mind_set.ui.emergency.EmergencyViewModel
 import com.example.mind_set.ui.screens.home.HomeScreen
+import com.example.mind_set.ui.screens.home.HomeViewModel
 import com.example.mind_set.ui.screens.jurnal.JournalViewModel
 import com.example.mind_set.ui.screens.jurnal.JurnalScreen
 import com.example.mind_set.ui.screens.login.LoginScreen
@@ -39,8 +43,30 @@ fun MindSetNavGraph() {
 
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
-    val emergencyRepository = remember { DefaultEmergencyRepository(database.emergencyLogDao()) }
-    val journalRepository = remember { DefaultJournalRepository(database.journalDao()) }
+    val geminiAiService = remember { GeminiAiService() }
+    val emergencyRepository = remember {
+        DefaultEmergencyRepository(
+            emergencyLogDao = database.emergencyLogDao(),
+            context = context,
+            geminiAiService = geminiAiService
+        )
+    }
+    val journalRepository = remember {
+        DefaultJournalRepository(
+            journalDao = database.journalDao(),
+            context = context,
+            geminiAiService = geminiAiService
+        )
+    }
+    val aiRecommendationRepository = remember {
+        DefaultAiRecommendationRepository(
+            context = context,
+            journalDao = database.journalDao(),
+            emergencyLogDao = database.emergencyLogDao(),
+            aiRecommendationDao = database.aiRecommendationDao(),
+            geminiAiService = geminiAiService
+        )
+    }
     val userRepository = remember { DefaultUserRepository(database.userDao()) }
 
     NavHost(navController = rootNavController, startDestination = "login") {
@@ -68,6 +94,7 @@ fun MindSetNavGraph() {
                 currentUsername = username,
                 emergencyRepository = emergencyRepository,
                 journalRepository = journalRepository,
+                aiRecommendationRepository = aiRecommendationRepository,
                 onNavigateToPauseGround = {
                     rootNavController.navigate("pause_ground")
                 }
@@ -91,6 +118,7 @@ fun MainScreen(
     currentUsername: String,
     emergencyRepository: EmergencyRepository,
     journalRepository: JournalRepository,
+    aiRecommendationRepository: AiRecommendationRepository,
     onNavigateToPauseGround: () -> Unit
 ) {
     val bottomNavController = rememberNavController()
@@ -111,9 +139,20 @@ fun MainScreen(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable("home") {
+                val homeViewModel: HomeViewModel = viewModel(
+                    factory = HomeViewModel.provideFactory(aiRecommendationRepository)
+                )
                 HomeScreen(
                     currentUsername = currentUsername,
-                    onEmergencyClick = onNavigateToPauseGround
+                    viewModel = homeViewModel,
+                    onEmergencyClick = onNavigateToPauseGround,
+                    onNavigateToJurnal = {
+                        bottomNavController.navigate("jurnal") {
+                            popUpTo("home") { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
             composable("jurnal") {
