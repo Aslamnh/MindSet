@@ -20,7 +20,7 @@ class GeminiAiService(
 ) {
 
     companion object {
-        private const val MODEL_NAME = "gemini-2.5-flash"
+        private const val MODEL_NAME = "gemini-3.8-flash"
         private const val BASE_URL =
             "https://generativelanguage.googleapis.com/v1beta/models/$MODEL_NAME:generateContent"
         private const val TIMEOUT_MS = 15_000
