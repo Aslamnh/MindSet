@@ -3,7 +3,6 @@ package com.example.mind_set.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -19,15 +18,11 @@ import com.example.mind_set.data.local.AppDatabase
 import com.example.mind_set.data.model.EmergencyIntervention
 import com.example.mind_set.data.model.JournalItem
 import com.example.mind_set.data.remote.GeminiAiService
-import com.example.mind_set.data.repository.AiRecommendationRepository
 import com.example.mind_set.data.repository.DefaultAiRecommendationRepository
 import com.example.mind_set.data.repository.DefaultEmergencyRepository
 import com.example.mind_set.data.repository.DefaultJournalRepository
 import com.example.mind_set.data.repository.DefaultProgressRepository
 import com.example.mind_set.data.repository.DefaultUserRepository
-import com.example.mind_set.data.repository.EmergencyRepository
-import com.example.mind_set.data.repository.JournalRepository
-import com.example.mind_set.data.repository.ProgressRepository
 import com.example.mind_set.ui.components.BottomNavBar
 import com.example.mind_set.ui.emergency.EmergencyViewModel
 import com.example.mind_set.ui.screens.home.HomeScreen
@@ -40,6 +35,9 @@ import com.example.mind_set.ui.screens.pauseground.PauseGroundScreen
 import com.example.mind_set.ui.screens.profil.ProfilScreen
 import com.example.mind_set.ui.screens.progress.ProgressScreen
 import com.example.mind_set.ui.screens.progress.ProgressViewModel
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 @Composable
 fun MindSetNavGraph() {
@@ -47,39 +45,7 @@ fun MindSetNavGraph() {
 
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
-    val geminiAiService = remember { GeminiAiService() }
-    val emergencyRepository = remember {
-        DefaultEmergencyRepository(
-            emergencyLogDao = database.emergencyLogDao(),
-            context = context,
-            geminiAiService = geminiAiService
-        )
-    }
-    val journalRepository = remember {
-        DefaultJournalRepository(
-            journalDao = database.journalDao(),
-            context = context,
-            geminiAiService = geminiAiService
-        )
-    }
-    val aiRecommendationRepository = remember {
-        DefaultAiRecommendationRepository(
-            context = context,
-            journalDao = database.journalDao(),
-            emergencyLogDao = database.emergencyLogDao(),
-            aiRecommendationDao = database.aiRecommendationDao(),
-            geminiAiService = geminiAiService
-        )
-    }
     val userRepository = remember { DefaultUserRepository(database.userDao()) }
-    val progressRepository = remember {
-        DefaultProgressRepository(
-            journalDao = database.journalDao(),
-            emergencyLogDao = database.emergencyLogDao(),
-            checkInDao = database.dailyCheckInDao(),
-            relapseLogDao = database.relapseLogDao()
-        )
-    }
 
     NavHost(navController = rootNavController, startDestination = "login") {
 
@@ -90,7 +56,8 @@ fun MindSetNavGraph() {
             LoginScreen(
                 viewModel = loginViewModel,
                 onLoginSuccess = { username ->
-                    rootNavController.navigate("main/$username") {
+                    val encoded = URLEncoder.encode(username, StandardCharsets.UTF_8.toString())
+                    rootNavController.navigate("main/$encoded") {
                         popUpTo("login") { inclusive = true }
                     }
                 }
@@ -98,16 +65,14 @@ fun MindSetNavGraph() {
         }
 
         composable(
-            route = "main/{username}",
-            arguments = listOf(navArgument("username") { type = NavType.StringType })
+            route = "main/{encodedUsername}",
+            arguments = listOf(navArgument("encodedUsername") { type = NavType.StringType })
         ) { backStackEntry ->
-            val username = backStackEntry.arguments?.getString("username") ?: "Alex"
+            val encoded = backStackEntry.arguments?.getString("encodedUsername") ?: "Alex"
+            val username = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
             MainScreen(
                 currentUsername = username,
-                emergencyRepository = emergencyRepository,
-                journalRepository = journalRepository,
-                aiRecommendationRepository = aiRecommendationRepository,
-                progressRepository = progressRepository,
+                database = database,
                 onNavigateToPauseGround = {
                     rootNavController.navigate("pause_ground")
                 }
@@ -115,8 +80,16 @@ fun MindSetNavGraph() {
         }
 
         composable("pause_ground") {
+            val ctx = LocalContext.current
             val emergencyViewModel: EmergencyViewModel = viewModel(
-                factory = EmergencyViewModel.provideFactory(emergencyRepository)
+                factory = EmergencyViewModel.provideFactory(
+                    DefaultEmergencyRepository(
+                        emergencyLogDao = AppDatabase.getDatabase(ctx).emergencyLogDao(),
+                        context = ctx,
+                        geminiAiService = GeminiAiService(),
+                        username = "default_user"
+                    )
+                )
             )
             PauseGroundScreen(
                 viewModel = emergencyViewModel,
@@ -129,17 +102,38 @@ fun MindSetNavGraph() {
 @Composable
 fun MainScreen(
     currentUsername: String,
-    emergencyRepository: EmergencyRepository,
-    journalRepository: JournalRepository,
-    aiRecommendationRepository: AiRecommendationRepository,
-    progressRepository: ProgressRepository,
+    database: AppDatabase,
     onNavigateToPauseGround: () -> Unit
 ) {
     val bottomNavController = rememberNavController()
+    val context = LocalContext.current
+    val geminiAiService = remember { GeminiAiService() }
 
-    // "Log-in Harian": catat sekali per hari saat pengguna masuk ke halaman utama.
-    LaunchedEffect(currentUsername) {
-        progressRepository.recordDailyCheckIn()
+    val emergencyRepository = remember(currentUsername) {
+        DefaultEmergencyRepository(
+            emergencyLogDao = database.emergencyLogDao(),
+            context = context,
+            geminiAiService = geminiAiService,
+            username = currentUsername
+        )
+    }
+    val journalRepository = remember(currentUsername) {
+        DefaultJournalRepository(
+            journalDao = database.journalDao(),
+            context = context,
+            geminiAiService = geminiAiService,
+            username = currentUsername
+        )
+    }
+    val aiRecommendationRepository = remember(currentUsername) {
+        DefaultAiRecommendationRepository(
+            context = context,
+            journalDao = database.journalDao(),
+            emergencyLogDao = database.emergencyLogDao(),
+            aiRecommendationDao = database.aiRecommendationDao(),
+            geminiAiService = geminiAiService,
+            username = currentUsername
+        )
     }
 
     val emergencyHistory: List<EmergencyIntervention> by emergencyRepository
@@ -166,13 +160,7 @@ fun MainScreen(
                     currentUsername = currentUsername,
                     viewModel = homeViewModel,
                     onEmergencyClick = onNavigateToPauseGround,
-                    onNavigateToJurnal = {
-                        bottomNavController.navigate("jurnal") {
-                            popUpTo("home") { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
+                    onNavigateToJurnal = { bottomNavController.navigate("jurnal") }
                 )
             }
             composable("jurnal") {
@@ -182,6 +170,15 @@ fun MainScreen(
                 JurnalScreen(viewModel = journalViewModel)
             }
             composable("progress") {
+                val progressRepository = remember(currentUsername) {
+                    DefaultProgressRepository(
+                        journalDao = database.journalDao(),
+                        emergencyLogDao = database.emergencyLogDao(),
+                        checkInDao = database.dailyCheckInDao(),
+                        relapseLogDao = database.relapseLogDao(),
+                        username = currentUsername
+                    )
+                }
                 val progressViewModel: ProgressViewModel = viewModel(
                     factory = ProgressViewModel.provideFactory(progressRepository)
                 )

@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.getOrElse
 
 data class RecoveryStats(
     val streakDays: Int = 1,
@@ -44,7 +45,8 @@ class DefaultAiRecommendationRepository(
     private val journalDao: JournalDao,
     private val emergencyLogDao: EmergencyLogDao,
     private val aiRecommendationDao: AiRecommendationDao,
-    private val geminiAiService: GeminiAiService
+    private val geminiAiService: GeminiAiService,
+    private val username: String = "default_user"
 ) : AiRecommendationRepository {
 
     override fun getLatestRecommendation(): Flow<AiRecommendation?> {
@@ -55,8 +57,8 @@ class DefaultAiRecommendationRepository(
 
     override fun getRecoveryStats(): Flow<RecoveryStats> {
         return combine(
-            journalDao.getAllJournals(),
-            emergencyLogDao.getAllLogs()
+            journalDao.getAllJournals(username),
+            emergencyLogDao.getAllLogs(username)
         ) { journals, logs ->
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val todayKey = dateFormat.format(Date())
@@ -64,7 +66,6 @@ class DefaultAiRecommendationRepository(
             val journalDays = journals.map { dateFormat.format(Date(it.createdAt)) }.toSet()
             val hasJournalToday = journalDays.contains(todayKey)
 
-            // Hitung streak dari jumlah hari unik jurnal + baseline progres aktif
             val streakDays = maxOf(1, journalDays.size)
             val targetDays = when {
                 streakDays < 3 -> 3
@@ -100,8 +101,8 @@ class DefaultAiRecommendationRepository(
     override suspend fun generateAndSaveRecommendation(
         currentMood: String
     ): RecommendationGenerationResult = withContext(Dispatchers.IO) {
-        val recentJournals = journalDao.getRecentJournals(5)
-        val recentEmergencies = emergencyLogDao.getRecentLogs(5)
+        val recentJournals = journalDao.getRecentJournals(username, 5)
+        val recentEmergencies = emergencyLogDao.getRecentLogs(username, 5)
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val uniqueDays = recentJournals.map { dateFormat.format(Date(it.createdAt)) }.toSet().size

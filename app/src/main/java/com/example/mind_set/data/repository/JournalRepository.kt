@@ -27,7 +27,8 @@ interface JournalRepository {
 class DefaultJournalRepository(
     private val journalDao: JournalDao,
     private val context: Context? = null,
-    private val geminiAiService: GeminiAiService? = null
+    private val geminiAiService: GeminiAiService? = null,
+    private val username: String = "default_user"
 ) : JournalRepository {
 
     override suspend fun saveJournal(
@@ -36,7 +37,7 @@ class DefaultJournalRepository(
         reframingText: String,
         tags: List<String>
     ): Int = withContext(Dispatchers.IO) {
-        val recentHistory = journalDao.getRecentJournals(3).map {
+        val recentHistory = journalDao.getRecentJournals(username, 3).map {
             "${it.mood}: ${it.triggerText.take(80)}"
         }
 
@@ -60,6 +61,7 @@ class DefaultJournalRepository(
         }
 
         val entity = JournalEntity(
+            username = username,
             mood = mood,
             triggerText = triggerText,
             reframingText = reframingText,
@@ -73,7 +75,7 @@ class DefaultJournalRepository(
     }
 
     override fun getAllJournals(): Flow<List<JournalItem>> {
-        return journalDao.getAllJournals().map { entities ->
+        return journalDao.getAllJournals(username).map { entities ->
             entities.map { entity ->
                 JournalItem(
                     id = entity.id,

@@ -16,16 +16,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 
 interface ProgressRepository {
-
-    /** Ringkasan progress yang otomatis diperbarui saat data jurnal / pause / kambuh berubah. */
     fun getProgress(): Flow<ProgressSummary>
-
-    /** Mencatat log-in harian (idempoten: satu baris per tanggal). */
     suspend fun recordDailyCheckIn()
-
-    /** Menyimpan catatan kambuh hari ini. */
     suspend fun logRelapse(triggerText: String, note: String)
-
     suspend fun deleteRelapse(id: Int)
 }
 
@@ -33,14 +26,15 @@ class DefaultProgressRepository(
     private val journalDao: JournalDao,
     private val emergencyLogDao: EmergencyLogDao,
     private val checkInDao: DailyCheckInDao,
-    private val relapseLogDao: RelapseLogDao
+    private val relapseLogDao: RelapseLogDao,
+    private val username: String = "default_user"
 ) : ProgressRepository {
 
     override fun getProgress(): Flow<ProgressSummary> = combine(
-        journalDao.getAllJournals(),
-        emergencyLogDao.getAllLogs(),
-        checkInDao.getAllCheckIns(),
-        relapseLogDao.getAllRelapses()
+        journalDao.getAllJournals(username),
+        emergencyLogDao.getAllLogs(username),
+        checkInDao.getAllCheckIns(username),
+        relapseLogDao.getAllRelapses(username)
     ) { journals, emergencies, checkIns, relapses ->
         buildSummary(
             journalKeys = journals.map { DateUtils.keyOf(it.createdAt) }.toSet(),
@@ -60,8 +54,8 @@ class DefaultProgressRepository(
 
     override suspend fun recordDailyCheckIn() = withContext(Dispatchers.IO) {
         val today = DateUtils.todayKey()
-        if (checkInDao.countForDate(today) == 0) {
-            checkInDao.insertCheckIn(DailyCheckInEntity(dateKey = today))
+        if (checkInDao.countForDate(today, username) == 0) {
+            checkInDao.insertCheckIn(DailyCheckInEntity(dateKey = today, username = username))
         }
     }
 
@@ -69,6 +63,7 @@ class DefaultProgressRepository(
         withContext(Dispatchers.IO) {
             relapseLogDao.insertRelapse(
                 RelapseLogEntity(
+                    username = username,
                     dateKey = DateUtils.todayKey(),
                     triggerText = triggerText.trim(),
                     note = note.trim()
@@ -81,8 +76,6 @@ class DefaultProgressRepository(
         relapseLogDao.deleteRelapse(id)
     }
 
-    // ---------------------------------------------------------------- kalkulasi
-
     private fun buildSummary(
         journalKeys: Set<String>,
         emergencyKeys: Set<String>,
@@ -93,7 +86,6 @@ class DefaultProgressRepository(
         val activityKeys = journalKeys + emergencyKeys + checkInKeys
         val relapseKeys = relapses.map { it.dateKey }.toSet()
 
-        // Titik awal pelacakan = aktivitas/kambuh paling awal, atau hari ini untuk pengguna baru.
         val trackingStart = (activityKeys + relapseKeys).minOrNull() ?: today
         val totalTrackedDays =
             (DateUtils.daysBetween(trackingStart, today) + 1).coerceAtLeast(1)
@@ -104,7 +96,6 @@ class DefaultProgressRepository(
         val totalCleanDays = (totalTrackedDays - pastRelapseKeys.count { it >= trackingStart })
             .coerceAtLeast(0)
 
-        // Hari kambuh tidak dihitung sebagai hari bersih; streak dimulai lagi keesokan harinya.
         val currentCleanStreak = when {
             lastRelapseKey == null -> DateUtils.daysBetween(trackingStart, today) + 1
             lastRelapseKey == today -> 0
@@ -212,7 +203,6 @@ class DefaultProgressRepository(
                 completed -> 1f
                 active -> ((streak - spec.start).toFloat() / (spec.end - spec.start))
                     .coerceIn(0f, 1f)
-
                 else -> 0f
             }
 
