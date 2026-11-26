@@ -3,6 +3,7 @@ package com.example.mind_set.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -22,9 +23,11 @@ import com.example.mind_set.data.repository.AiRecommendationRepository
 import com.example.mind_set.data.repository.DefaultAiRecommendationRepository
 import com.example.mind_set.data.repository.DefaultEmergencyRepository
 import com.example.mind_set.data.repository.DefaultJournalRepository
+import com.example.mind_set.data.repository.DefaultProgressRepository
 import com.example.mind_set.data.repository.DefaultUserRepository
 import com.example.mind_set.data.repository.EmergencyRepository
 import com.example.mind_set.data.repository.JournalRepository
+import com.example.mind_set.data.repository.ProgressRepository
 import com.example.mind_set.ui.components.BottomNavBar
 import com.example.mind_set.ui.emergency.EmergencyViewModel
 import com.example.mind_set.ui.screens.home.HomeScreen
@@ -36,6 +39,7 @@ import com.example.mind_set.ui.screens.login.LoginViewModel
 import com.example.mind_set.ui.screens.pauseground.PauseGroundScreen
 import com.example.mind_set.ui.screens.profil.ProfilScreen
 import com.example.mind_set.ui.screens.progress.ProgressScreen
+import com.example.mind_set.ui.screens.progress.ProgressViewModel
 
 @Composable
 fun MindSetNavGraph() {
@@ -68,6 +72,14 @@ fun MindSetNavGraph() {
         )
     }
     val userRepository = remember { DefaultUserRepository(database.userDao()) }
+    val progressRepository = remember {
+        DefaultProgressRepository(
+            journalDao = database.journalDao(),
+            emergencyLogDao = database.emergencyLogDao(),
+            checkInDao = database.dailyCheckInDao(),
+            relapseLogDao = database.relapseLogDao()
+        )
+    }
 
     NavHost(navController = rootNavController, startDestination = "login") {
 
@@ -95,6 +107,7 @@ fun MindSetNavGraph() {
                 emergencyRepository = emergencyRepository,
                 journalRepository = journalRepository,
                 aiRecommendationRepository = aiRecommendationRepository,
+                progressRepository = progressRepository,
                 onNavigateToPauseGround = {
                     rootNavController.navigate("pause_ground")
                 }
@@ -119,9 +132,16 @@ fun MainScreen(
     emergencyRepository: EmergencyRepository,
     journalRepository: JournalRepository,
     aiRecommendationRepository: AiRecommendationRepository,
+    progressRepository: ProgressRepository,
     onNavigateToPauseGround: () -> Unit
 ) {
     val bottomNavController = rememberNavController()
+
+    // "Log-in Harian": catat sekali per hari saat pengguna masuk ke halaman utama.
+    LaunchedEffect(currentUsername) {
+        progressRepository.recordDailyCheckIn()
+    }
+
     val emergencyHistory: List<EmergencyIntervention> by emergencyRepository
         .getEmergencyHistory()
         .collectAsState(initial = emptyList())
@@ -162,7 +182,10 @@ fun MainScreen(
                 JurnalScreen(viewModel = journalViewModel)
             }
             composable("progress") {
-                ProgressScreen()
+                val progressViewModel: ProgressViewModel = viewModel(
+                    factory = ProgressViewModel.provideFactory(progressRepository)
+                )
+                ProgressScreen(viewModel = progressViewModel)
             }
             composable("profil") {
                 ProfilScreen(
