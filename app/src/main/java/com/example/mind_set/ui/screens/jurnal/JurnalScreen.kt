@@ -411,7 +411,7 @@ fun JournalFormContent(
 
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Bagaimana sudut pandang yang lebih welas asih atau preferensi jawabanmu?", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                    Text("Preferensi Jawaban dari AI.", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                     Spacer(Modifier.width(4.dp))
                     Surface(shape = RoundedCornerShape(10.dp), color = MindSetSecondaryLight) {
                         Text("Reframing CBT", style = MaterialTheme.typography.labelSmall, color = MindSetNeutral, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
@@ -424,7 +424,7 @@ fun JournalFormContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(80.dp),
-                    placeholder = { Text("Tuliskan sudut pandang alternatif yang lebih welas asih atau preferensi jawabanmu...", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
+                    placeholder = { Text("Contoh: Jawab dengan cara halus, dan tidak menghakimi", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
                     shape  = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor      = MindSetPrimary,
