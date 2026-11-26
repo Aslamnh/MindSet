@@ -16,7 +16,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class GeminiAiService(
-    private val apiKeyProvider: () -> String = { BuildConfig.GEMINI_API_KEY }
+    private val apiKeyProvider: () -> String = { BuildConfig.GEMINI_API_KEY },
+    private val proxyUrlProvider: () -> String = { BuildConfig.AI_PROXY_URL }
 ) {
 
     companion object {
@@ -26,7 +27,8 @@ class GeminiAiService(
         private const val TIMEOUT_MS = 15_000
     }
 
-    fun isApiConfigured(): Boolean = apiKeyProvider().isNotBlank()
+    fun isApiConfigured(): Boolean =
+        proxyUrlProvider().isNotBlank() || apiKeyProvider().isNotBlank()
 
     suspend fun generateDailyRecommendation(
         context: UserContextSummary
@@ -194,13 +196,18 @@ class GeminiAiService(
     }
 
     private fun requestJsonFromGemini(prompt: String): Result<String> {
+        val proxyUrl = proxyUrlProvider().trim()
         val apiKey = apiKeyProvider().trim()
-        if (apiKey.isBlank()) {
-            return Result.failure(IllegalStateException("API Key Gemini belum dikonfigurasi."))
+
+        if (proxyUrl.isBlank() && apiKey.isBlank()) {
+            return Result.failure(
+                IllegalStateException("AI Proxy URL maupun API Key Gemini belum dikonfigurasi.")
+            )
         }
 
+        val useProxy = proxyUrl.isNotBlank()
         return runCatching {
-            val url = URL("$BASE_URL?key=$apiKey")
+            val url = if (useProxy) URL(proxyUrl) else URL("$BASE_URL?key=$apiKey")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = TIMEOUT_MS
@@ -210,23 +217,29 @@ class GeminiAiService(
             }
 
             try {
-                val requestBody = JSONObject().apply {
-                    put(
-                        "contents",
-                        JSONArray().put(
-                            JSONObject().put(
-                                "parts",
-                                JSONArray().put(JSONObject().put("text", prompt))
+                val requestBody = if (useProxy) {
+                    JSONObject().apply {
+                        put("prompt", prompt)
+                    }
+                } else {
+                    JSONObject().apply {
+                        put(
+                            "contents",
+                            JSONArray().put(
+                                JSONObject().put(
+                                    "parts",
+                                    JSONArray().put(JSONObject().put("text", prompt))
+                                )
                             )
                         )
-                    )
-                    put(
-                        "generationConfig",
-                        JSONObject().apply {
-                            put("temperature", 0.5)
-                            put("responseMimeType", "application/json")
-                        }
-                    )
+                        put(
+                            "generationConfig",
+                            JSONObject().apply {
+                                put("temperature", 0.5)
+                                put("responseMimeType", "application/json")
+                            }
+                        )
+                    }
                 }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->

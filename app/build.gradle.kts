@@ -13,6 +13,7 @@ val localProperties = Properties().apply {
     }
 }
 val geminiApiKey: String = localProperties.getProperty("GEMINI_API_KEY", "")
+val aiProxyUrl: String = localProperties.getProperty("AI_PROXY_URL", "https://mindset-ai-proxy.eggdropse.workers.dev")
 
 android {
     namespace = "com.example.mind_set"
@@ -29,6 +30,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "AI_PROXY_URL", "\"$aiProxyUrl\"")
     }
 
     buildTypes {
