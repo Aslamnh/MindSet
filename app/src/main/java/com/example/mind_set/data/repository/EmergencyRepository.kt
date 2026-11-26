@@ -1,8 +1,11 @@
 package com.example.mind_set.data.repository
 
+import android.content.Context
 import com.example.mind_set.data.local.dao.EmergencyLogDao
 import com.example.mind_set.data.local.entity.EmergencyLogEntity
 import com.example.mind_set.data.model.EmergencyIntervention
+import com.example.mind_set.data.remote.GeminiAiService
+import com.example.mind_set.data.remote.NetworkUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -31,10 +34,9 @@ interface EmergencyRepository {
 }
 
 class DefaultEmergencyRepository(
-    private val emergencyLogDao: EmergencyLogDao
-    // Nanti tinggal tambahkan parameter di sini saat integrasi API AI / Supabase:
-    // private val aiApiService: AiApiService? = null,
-    // private val supabaseApiService: SupabaseApiService? = null
+    private val emergencyLogDao: EmergencyLogDao,
+    private val context: Context? = null,
+    private val geminiAiService: GeminiAiService? = null
 ) : EmergencyRepository {
 
     override suspend fun processEmergencyAssessment(
@@ -44,13 +46,31 @@ class DefaultEmergencyRepository(
         excludeTitle: String?
     ): EmergencyIntervention = withContext(Dispatchers.IO) {
 
-        // 1. Panggil CbtFallbackProvider untuk mendapatkan panduan CBT yang bervariasi
-        //    dan tidak mengulang excludeTitle saat tombol "Coba Panduan Lain" ditekan.
-        val intervention = CbtFallbackProvider.generate(
-            urgeLevel = urgeLevel,
-            triggerCategory = triggerCategory,
-            excludeTitle = excludeTitle
-        )
+        val canUseAi = excludeTitle == null &&
+            context != null &&
+            geminiAiService != null &&
+            NetworkUtils.isInternetAvailable(context) &&
+            geminiAiService.isApiConfigured()
+
+        val intervention = if (canUseAi) {
+            geminiAiService!!.analyzeEmergency(
+                urgeLevel = urgeLevel,
+                triggerCategory = triggerCategory,
+                additionalNote = additionalNote
+            ).getOrElse {
+                CbtFallbackProvider.generate(
+                    urgeLevel = urgeLevel,
+                    triggerCategory = triggerCategory,
+                    excludeTitle = excludeTitle
+                )
+            }
+        } else {
+            CbtFallbackProvider.generate(
+                urgeLevel = urgeLevel,
+                triggerCategory = triggerCategory,
+                excludeTitle = excludeTitle
+            )
+        }
 
         // 2. Simpan hasil analisis ke Room Database lokal (isSynced = false untuk Supabase nanti)
         val combinedRecommendation =

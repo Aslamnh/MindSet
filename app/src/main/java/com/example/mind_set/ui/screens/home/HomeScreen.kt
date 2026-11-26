@@ -26,9 +26,17 @@ import com.example.mind_set.ui.theme.*
 @Composable
 fun HomeScreen(
     currentUsername: String = "Alex",
-    onEmergencyClick: () -> Unit
+    viewModel: HomeViewModel,
+    onEmergencyClick: () -> Unit,
+    onNavigateToJurnal: () -> Unit
 ) {
-    var selectedMood by remember { mutableStateOf("") }
+    val uiState by viewModel.uiState.collectAsState()
+    val stats = uiState.recoveryStats
+    val recommendation = uiState.recommendation
+    val progressFraction = if (stats.targetDays > 0) {
+        (stats.streakDays.toFloat() / stats.targetDays.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    val progressPercent = (progressFraction * 100).toInt()
 
     Column(
         modifier = Modifier
@@ -95,7 +103,7 @@ fun HomeScreen(
                     color = MindSetPrimaryContainer
                 ) {
                     Text(
-                        text = "⭐ Hari Ke-14",
+                        text = "⭐ Hari Ke-${stats.streakDays}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MindSetPrimary,
                         fontWeight = FontWeight.Bold,
@@ -119,12 +127,12 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 moods.forEach { mood ->
-                    val selected = selectedMood == mood
+                    val selected = uiState.selectedMood == mood
                     Surface(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
-                            .clickable { selectedMood = mood },
+                            .clickable { viewModel.selectMood(mood) },
                         shape = RoundedCornerShape(14.dp),
                         color = if (selected) MindSetPrimaryContainer else MindSetSurface,
                         border = BorderStroke(
@@ -233,7 +241,7 @@ fun HomeScreen(
                     Text("🏆", fontSize = 20.sp)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "Clean Streak: 14 Hari Bersih",
+                        text = "Clean Streak: ${stats.streakDays} Hari Bersih",
                         style = MaterialTheme.typography.titleSmall,
                         color = MindSetNeutral,
                         fontWeight = FontWeight.Bold,
@@ -248,7 +256,7 @@ fun HomeScreen(
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Milestone CBT Fase 2: Refleksi Pola",
+                    text = "Rasio Sukses: ${"%.1f".format(stats.successRatioPercent)}% • ${stats.totalJournals} Jurnal • ${stats.totalEmergencySessions} Krisis Teratasi",
                     style = MaterialTheme.typography.bodySmall,
                     color = MindSetPrimary,
                     fontWeight = FontWeight.Medium
@@ -260,12 +268,12 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Target: 21 Hari (Habit Baru)",
+                        text = "Target: ${stats.targetDays} Hari (Habit Baru)",
                         style = MaterialTheme.typography.labelSmall,
                         color = MindSetNeutralGrey
                     )
                     Text(
-                        text = "14/21 Hari (66%)",
+                        text = "${stats.streakDays}/${stats.targetDays} Hari ($progressPercent%)",
                         style = MaterialTheme.typography.labelSmall,
                         color = MindSetNeutral,
                         fontWeight = FontWeight.Bold
@@ -273,7 +281,7 @@ fun HomeScreen(
                 }
                 Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(
-                    progress = { 0.66f },
+                    progress = { progressFraction },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
@@ -311,9 +319,10 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val isGemini = recommendation?.sourceType == "GEMINI_AI"
                     Surface(shape = RoundedCornerShape(20.dp), color = MindSetPrimaryContainer) {
                         Text(
-                            text = "✨ Rekomendasi AI",
+                            text = if (isGemini) "✨ Gemini AI" else "🛡️ Rekomendasi Lokal",
                             style = MaterialTheme.typography.labelSmall,
                             color = MindSetPrimary,
                             fontWeight = FontWeight.SemiBold,
@@ -329,18 +338,69 @@ fun HomeScreen(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
+                    Spacer(Modifier.weight(1f))
+                    IconButton(
+                        onClick = { viewModel.refreshRecommendation() },
+                        enabled = !uiState.isLoadingRecommendation,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        if (uiState.isLoadingRecommendation) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MindSetPrimary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "Perbarui Rekomendasi AI",
+                                tint = MindSetPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (recommendation?.isHighRiskPattern == true && !recommendation.warningMessage.isNullOrBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MindSetSecondaryLight,
+                        border = BorderStroke(1.dp, MindSetSecondary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Warning,
+                                contentDescription = null,
+                                tint = MindSetSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = recommendation.warningMessage,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MindSetNeutral,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Pengalihan Fokus: Grounding 5-Menit",
+                    text = recommendation?.title ?: "Menyiapkan Rekomendasi Personal...",
                     style = MaterialTheme.typography.titleMedium,
                     color = MindSetNeutral,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "Berdasarkan pola catatanmu: saat malam hari, luangkan waktu membaca buku fisik atau latihan pernapasan sebelum tidur.",
+                    text = recommendation?.description
+                        ?: "Sistem sedang menganalisis riwayat jurnal, streak, dan pemicu terakhirmu.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MindSetNeutralGrey,
                     lineHeight = 18.sp
@@ -350,19 +410,40 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp)
+                        .height(110.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(MindSetPrimaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🌙", fontSize = 36.sp)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    ) {
+                        Text("🌙", fontSize = 32.sp)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "Metode 5-4-3-2-1 • 5 Menit",
+                            text = "${recommendation?.activityMethod ?: "Metode 5-4-3-2-1"} • ${recommendation?.durationLabel ?: "5 Menit"}",
                             style = MaterialTheme.typography.labelMedium,
                             color = MindSetPrimary,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                if (!recommendation?.habitAvoidanceTip.isNullOrBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MindSetBackground,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "💡 Hindari Kebiasaan Buruk: ${recommendation?.habitAvoidanceTip}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MindSetNeutral,
+                            modifier = Modifier.padding(10.dp),
+                            lineHeight = 16.sp
                         )
                     }
                 }
@@ -370,7 +451,8 @@ fun HomeScreen(
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
-                        onClick = {},
+                        onClick = { viewModel.setExerciseDialogVisible(true) },
+                        enabled = recommendation != null,
                         modifier = Modifier
                             .weight(1f)
                             .height(46.dp),
@@ -382,14 +464,31 @@ fun HomeScreen(
                         Text("Jalankan Latihan", color = Color.White, style = MaterialTheme.typography.labelLarge)
                     }
                     IconButton(
-                        onClick = {},
+                        onClick = { viewModel.toggleBookmark() },
+                        enabled = recommendation != null,
                         modifier = Modifier
                             .size(46.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MindSetBackground)
                     ) {
-                        Icon(Icons.Filled.BookmarkBorder, contentDescription = "Simpan", tint = MindSetNeutral)
+                        Icon(
+                            imageVector = if (recommendation?.isBookmarked == true) {
+                                Icons.Filled.Bookmark
+                            } else {
+                                Icons.Filled.BookmarkBorder
+                            },
+                            contentDescription = "Simpan",
+                            tint = if (recommendation?.isBookmarked == true) MindSetPrimary else MindSetNeutral
+                        )
                     }
+                }
+                if (!uiState.statusNotice.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = uiState.statusNotice!!,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MindSetNeutralGrey
+                    )
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -438,7 +537,7 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(14.dp))
                 OutlinedButton(
-                    onClick = {},
+                    onClick = onNavigateToJurnal,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(46.dp),
@@ -455,5 +554,44 @@ fun HomeScreen(
         }
 
         Spacer(Modifier.height(8.dp))
+    }
+
+    if (uiState.showExerciseDialog && recommendation != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.setExerciseDialogVisible(false) },
+            title = {
+                Text(
+                    text = recommendation.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MindSetNeutral
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "${recommendation.activityMethod} (${recommendation.durationLabel})",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MindSetPrimary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    recommendation.actionSteps.forEachIndexed { index, step ->
+                        Text(
+                            text = "${index + 1}. $step",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MindSetNeutral
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.setExerciseDialogVisible(false) },
+                    colors = ButtonDefaults.buttonColors(containerColor = MindSetPrimary)
+                ) {
+                    Text("Selesai", color = Color.White)
+                }
+            }
+        )
     }
 }

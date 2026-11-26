@@ -4,9 +4,11 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.mind_set.data.local.dao.AiRecommendationDao
 import com.example.mind_set.data.local.dao.EmergencyLogDao
 import com.example.mind_set.data.local.dao.JournalDao
 import com.example.mind_set.data.local.dao.UserDao
+import com.example.mind_set.data.local.entity.AiRecommendationEntity
 import com.example.mind_set.data.local.entity.EmergencyLogEntity
 import com.example.mind_set.data.local.entity.JournalEntity
 import com.example.mind_set.data.local.entity.UserEntity
@@ -15,9 +17,10 @@ import com.example.mind_set.data.local.entity.UserEntity
     entities = [
         EmergencyLogEntity::class,
         JournalEntity::class,
-        UserEntity::class
+        UserEntity::class,
+        AiRecommendationEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -25,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun emergencyLogDao(): EmergencyLogDao
     abstract fun journalDao(): JournalDao
     abstract fun userDao(): UserDao
+    abstract fun aiRecommendationDao(): AiRecommendationDao
 
     companion object {
         @Volatile
