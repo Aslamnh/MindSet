@@ -1,8 +1,11 @@
 package com.example.mind_set.data.repository
 
+import android.content.Context
 import com.example.mind_set.data.local.dao.JournalDao
 import com.example.mind_set.data.local.entity.JournalEntity
 import com.example.mind_set.data.model.JournalItem
+import com.example.mind_set.data.remote.GeminiAiService
+import com.example.mind_set.data.remote.NetworkUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -22,7 +25,9 @@ interface JournalRepository {
 }
 
 class DefaultJournalRepository(
-    private val journalDao: JournalDao
+    private val journalDao: JournalDao,
+    private val context: Context? = null,
+    private val geminiAiService: GeminiAiService? = null
 ) : JournalRepository {
 
     override suspend fun saveJournal(
@@ -31,7 +36,28 @@ class DefaultJournalRepository(
         reframingText: String,
         tags: List<String>
     ): Int = withContext(Dispatchers.IO) {
-        val analysis = JournalCbtFallbackProvider.analyze(mood, triggerText, reframingText, tags)
+        val recentHistory = journalDao.getRecentJournals(3).map {
+            "${it.mood}: ${it.triggerText.take(80)}"
+        }
+
+        val canUseAi = context != null &&
+            geminiAiService != null &&
+            NetworkUtils.isInternetAvailable(context) &&
+            geminiAiService.isApiConfigured()
+
+        val analysis = if (canUseAi) {
+            geminiAiService!!.analyzeJournalEntry(
+                mood = mood,
+                triggerText = triggerText,
+                reframingText = reframingText,
+                tags = tags,
+                recentHistory = recentHistory
+            ).getOrElse {
+                JournalCbtFallbackProvider.analyze(mood, triggerText, reframingText, tags)
+            }
+        } else {
+            JournalCbtFallbackProvider.analyze(mood, triggerText, reframingText, tags)
+        }
 
         val entity = JournalEntity(
             mood = mood,

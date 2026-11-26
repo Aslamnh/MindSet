@@ -16,6 +16,9 @@ interface EmergencyLogDao {
     @Query("SELECT * FROM emergency_logs ORDER BY created_at DESC")
     fun getAllLogs(): Flow<List<EmergencyLogEntity>>
 
+    @Query("SELECT * FROM emergency_logs ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getRecentLogs(limit: Int): List<EmergencyLogEntity>
+
     @Query("SELECT * FROM emergency_logs WHERE is_synced = 0 ORDER BY created_at ASC")
     suspend fun getUnsyncedLogs(): List<EmergencyLogEntity>
 

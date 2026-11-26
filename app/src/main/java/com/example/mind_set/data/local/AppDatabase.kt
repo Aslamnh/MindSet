@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.mind_set.data.local.dao.AiRecommendationDao
 import com.example.mind_set.data.local.dao.DailyCheckInDao
 import com.example.mind_set.data.local.dao.EmergencyLogDao
 import com.example.mind_set.data.local.dao.JournalDao
 import com.example.mind_set.data.local.dao.RelapseLogDao
 import com.example.mind_set.data.local.dao.UserDao
+import com.example.mind_set.data.local.entity.AiRecommendationEntity
 import com.example.mind_set.data.local.entity.DailyCheckInEntity
 import com.example.mind_set.data.local.entity.EmergencyLogEntity
 import com.example.mind_set.data.local.entity.JournalEntity
@@ -20,10 +22,13 @@ import com.example.mind_set.data.local.entity.UserEntity
         EmergencyLogEntity::class,
         JournalEntity::class,
         UserEntity::class,
+        AiRecommendationEntity::class,
         DailyCheckInEntity::class,
         RelapseLogEntity::class
     ],
-    version = 5,
+    // Naik ke 6 karena branch progress menambah 2 tabel dan main menambah 1 tabel
+    // (keduanya sempat memakai versi 5).
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun emergencyLogDao(): EmergencyLogDao
     abstract fun journalDao(): JournalDao
     abstract fun userDao(): UserDao
+    abstract fun aiRecommendationDao(): AiRecommendationDao
     abstract fun dailyCheckInDao(): DailyCheckInDao
     abstract fun relapseLogDao(): RelapseLogDao
 
