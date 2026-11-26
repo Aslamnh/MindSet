@@ -4,15 +4,13 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-/**
- * Catatan kambuh (relapse) yang diinput manual oleh pengguna
- * melalui tombol "Catat Evaluasi Kambuh" di layar Progress.
- */
 @Entity(tableName = "relapse_logs")
 data class RelapseLogEntity(
-
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
+
+    @ColumnInfo(name = "username")
+    val username: String = "default_user",
 
     @ColumnInfo(name = "date_key")
     val dateKey: String, // format yyyy-MM-dd

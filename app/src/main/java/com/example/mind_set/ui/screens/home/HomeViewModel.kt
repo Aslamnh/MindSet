@@ -12,57 +12,59 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
-    private val aiRecommendationRepository: AiRecommendationRepository
+    private val recommendationRepository: AiRecommendationRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        observeRecoveryStats()
-        observeLatestRecommendation()
+        observeRecommendation()
+        observeStats()
     }
 
-    private fun observeRecoveryStats() {
+    private fun observeRecommendation() {
         viewModelScope.launch {
-            aiRecommendationRepository.getRecoveryStats()
-                .catch { /* keep default stats */ }
-                .collect { stats ->
-                    _uiState.update { it.copy(recoveryStats = stats) }
+            recommendationRepository.getLatestRecommendation()
+                .catch { error ->
+                    _uiState.update { it.copy(statusNotice = error.localizedMessage) }
                 }
-        }
-    }
-
-    private fun observeLatestRecommendation() {
-        viewModelScope.launch {
-            aiRecommendationRepository.getLatestRecommendation()
-                .catch { /* ignore */ }
-                .collect { latest ->
-                    if (latest != null) {
-                        _uiState.update { it.copy(recommendation = latest) }
-                    } else if (!_uiState.value.isLoadingRecommendation) {
+                .collect { rec ->
+                    if (rec != null) {
+                        _uiState.update { it.copy(recommendation = rec) }
+                    } else {
                         refreshRecommendation()
                     }
                 }
         }
     }
 
-    fun selectMood(mood: String) {
-        _uiState.update { it.copy(selectedMood = mood) }
-        refreshRecommendation(moodOverride = mood)
+    private fun observeStats() {
+        viewModelScope.launch {
+            recommendationRepository.getRecoveryStats()
+                .catch { }
+                .collect { stats ->
+                    _uiState.update { it.copy(recoveryStats = stats) }
+                }
+        }
     }
 
-    fun refreshRecommendation(moodOverride: String? = null) {
-        val mood = moodOverride ?: _uiState.value.selectedMood
+    fun selectMood(mood: String) {
+        _uiState.update { it.copy(selectedMood = mood) }
+        refreshRecommendation()
+    }
+
+    fun refreshRecommendation() {
+        val currentMood = _uiState.value.selectedMood.ifBlank { "Tenang" }
         _uiState.update { it.copy(isLoadingRecommendation = true, statusNotice = null) }
 
         viewModelScope.launch {
             try {
-                val result = aiRecommendationRepository.generateAndSaveRecommendation(mood)
+                val result = recommendationRepository.generateAndSaveRecommendation(currentMood)
                 _uiState.update {
                     it.copy(
-                        recommendation = result.recommendation,
                         isLoadingRecommendation = false,
+                        recommendation = result.recommendation,
                         statusNotice = result.apiErrorNotice
                     )
                 }
@@ -70,7 +72,7 @@ class HomeViewModel(
                 _uiState.update {
                     it.copy(
                         isLoadingRecommendation = false,
-                        statusNotice = e.localizedMessage ?: "Gagal memuat rekomendasi AI."
+                        statusNotice = e.localizedMessage ?: "Gagal memperbarui rekomendasi."
                     )
                 }
             }
@@ -78,10 +80,21 @@ class HomeViewModel(
     }
 
     fun toggleBookmark() {
-        val current = _uiState.value.recommendation ?: return
-        if (current.id == 0) return
+        val currentRec = _uiState.value.recommendation ?: return
+        val newBookmarkState = !currentRec.isBookmarked
+
+        _uiState.update {
+            it.copy(recommendation = currentRec.copy(isBookmarked = newBookmarkState))
+        }
+
         viewModelScope.launch {
-            aiRecommendationRepository.toggleBookmark(current.id, !current.isBookmarked)
+            try {
+                recommendationRepository.toggleBookmark(currentRec.id, newBookmarkState)
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(recommendation = currentRec)
+                }
+            }
         }
     }
 
@@ -91,11 +104,14 @@ class HomeViewModel(
 
     companion object {
         fun provideFactory(
-            aiRecommendationRepository: AiRecommendationRepository
+            repository: AiRecommendationRepository
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return HomeViewModel(aiRecommendationRepository) as T
+                if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
+                    return HomeViewModel(repository) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
         }
     }

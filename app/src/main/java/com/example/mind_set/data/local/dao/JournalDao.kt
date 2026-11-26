@@ -13,11 +13,11 @@ interface JournalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertJournal(entity: JournalEntity): Long
 
-    @Query("SELECT * FROM journals ORDER BY created_at DESC")
-    fun getAllJournals(): Flow<List<JournalEntity>>
+    @Query("SELECT * FROM journals WHERE username = :username ORDER BY created_at DESC")
+    fun getAllJournals(username: String): Flow<List<JournalEntity>>
 
-    @Query("SELECT * FROM journals ORDER BY created_at DESC LIMIT :limit")
-    suspend fun getRecentJournals(limit: Int): List<JournalEntity>
+    @Query("SELECT * FROM journals WHERE username = :username ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getRecentJournals(username: String, limit: Int): List<JournalEntity>
 
     @Query("SELECT * FROM journals WHERE id = :id")
     suspend fun getJournalById(id: Int): JournalEntity?

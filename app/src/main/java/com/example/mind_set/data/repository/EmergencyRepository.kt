@@ -36,7 +36,8 @@ interface EmergencyRepository {
 class DefaultEmergencyRepository(
     private val emergencyLogDao: EmergencyLogDao,
     private val context: Context? = null,
-    private val geminiAiService: GeminiAiService? = null
+    private val geminiAiService: GeminiAiService? = null,
+    private val username: String = "default_user"
 ) : EmergencyRepository {
 
     override suspend fun processEmergencyAssessment(
@@ -72,11 +73,11 @@ class DefaultEmergencyRepository(
             )
         }
 
-        // 2. Simpan hasil analisis ke Room Database lokal (isSynced = false untuk Supabase nanti)
         val combinedRecommendation =
             "${intervention.cbtTechniqueTitle}: ${intervention.recommendationSteps.joinToString(" | ")}"
 
         val entity = EmergencyLogEntity(
+            username = username,
             urgeLevel = urgeLevel,
             triggerCategory = triggerCategory,
             additionalNote = additionalNote,
@@ -89,7 +90,6 @@ class DefaultEmergencyRepository(
 
         val insertedId = emergencyLogDao.insertLog(entity).toInt()
 
-        // 3. Kembalikan domain model dengan ID yang baru tersimpan
         intervention.copy(id = insertedId)
     }
 
@@ -100,7 +100,6 @@ class DefaultEmergencyRepository(
         existingLogId: Int?
     ): Int = withContext(Dispatchers.IO) {
 
-        // Jika sudah ada log aktif dari sesi ini, update refleksi-nya
         if (existingLogId != null) {
             emergencyLogDao.finalizeWithReflection(
                 logId = existingLogId,
@@ -108,8 +107,8 @@ class DefaultEmergencyRepository(
             )
             existingLogId
         } else {
-            // Buat entry baru langsung sebagai log refleksi final
             val entity = EmergencyLogEntity(
+                username = username,
                 urgeLevel = urgeLevel,
                 triggerCategory = triggerCategory,
                 additionalNote = reflectionNote,
@@ -123,7 +122,7 @@ class DefaultEmergencyRepository(
     }
 
     override fun getEmergencyHistory(): Flow<List<EmergencyIntervention>> {
-        return emergencyLogDao.getAllLogs().map { entities ->
+        return emergencyLogDao.getAllLogs(username).map { entities ->
             entities.map { entity ->
                 EmergencyIntervention(
                     id = entity.id,

@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 interface UserRepository {
     suspend fun register(username: String, pass: String): Boolean
     suspend fun login(username: String, pass: String): Boolean
+    suspend fun changePassword(username: String, oldPass: String, newPass: String): Boolean
 }
 
 class DefaultUserRepository(
@@ -15,8 +16,16 @@ class DefaultUserRepository(
 ) : UserRepository {
     override suspend fun register(username: String, pass: String): Boolean = withContext(Dispatchers.IO) {
         try {
+            val cleanUsername = username.trim().lowercase()
+            if (cleanUsername.isBlank() || pass.isBlank()) return@withContext false
+
+            val existing = userDao.getUserByUsername(cleanUsername)
+            if (existing != null) {
+                return@withContext false
+            }
+
             val hash = PasswordCrypto.hashPassword(pass)
-            userDao.insertUser(UserEntity(username = username.trim().lowercase(), passwordHash = hash))
+            userDao.insertUser(UserEntity(username = cleanUsername, passwordHash = hash))
             true
         } catch (e: Exception) {
             false
@@ -24,8 +33,31 @@ class DefaultUserRepository(
     }
 
     override suspend fun login(username: String, pass: String): Boolean = withContext(Dispatchers.IO) {
-        val user = userDao.getUserByUsername(username.trim().lowercase()) ?: return@withContext false
-        val hash = PasswordCrypto.hashPassword(pass)
-        user.passwordHash == hash
+        try {
+            val cleanUsername = username.trim().lowercase()
+            if (cleanUsername.isBlank() || pass.isBlank()) return@withContext false
+
+            val user = userDao.getUserByUsername(cleanUsername) ?: return@withContext false
+            val hash = PasswordCrypto.hashPassword(pass)
+            user.passwordHash == hash
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    override suspend fun changePassword(username: String, oldPass: String, newPass: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val cleanUsername = username.trim().lowercase()
+            if (cleanUsername.isBlank() || newPass.isBlank()) return@withContext false
+            val user = userDao.getUserByUsername(cleanUsername) ?: return@withContext false
+            val oldHash = PasswordCrypto.hashPassword(oldPass)
+            if (user.passwordHash != oldHash) return@withContext false
+
+            val newHash = PasswordCrypto.hashPassword(newPass)
+            userDao.updatePassword(cleanUsername, newHash)
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 }

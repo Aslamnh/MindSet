@@ -9,6 +9,9 @@ data class EmergencyLogEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
+    @ColumnInfo(name = "username")
+    val username: String = "default_user",
+
     @ColumnInfo(name = "urge_level")
     val urgeLevel: Int,
 

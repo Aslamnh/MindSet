@@ -26,9 +26,7 @@ import com.example.mind_set.data.local.entity.UserEntity
         DailyCheckInEntity::class,
         RelapseLogEntity::class
     ],
-    // Naik ke 6 karena branch progress menambah 2 tabel dan main menambah 1 tabel
-    // (keduanya sempat memakai versi 5).
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

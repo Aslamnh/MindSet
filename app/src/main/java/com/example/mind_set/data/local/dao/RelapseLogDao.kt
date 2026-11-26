@@ -13,8 +13,8 @@ interface RelapseLogDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRelapse(entity: RelapseLogEntity): Long
 
-    @Query("SELECT * FROM relapse_logs ORDER BY created_at DESC")
-    fun getAllRelapses(): Flow<List<RelapseLogEntity>>
+    @Query("SELECT * FROM relapse_logs WHERE username = :username ORDER BY created_at DESC")
+    fun getAllRelapses(username: String): Flow<List<RelapseLogEntity>>
 
     @Query("DELETE FROM relapse_logs WHERE id = :id")
     suspend fun deleteRelapse(id: Int)

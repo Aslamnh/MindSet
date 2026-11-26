@@ -23,8 +23,16 @@ import androidx.compose.ui.unit.sp
 import com.example.mind_set.data.model.JournalItem
 import com.example.mind_set.ui.theme.*
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+data class WeekDayData(
+    val name: String,
+    val num: Int,
+    val isToday: Boolean,
+    val isCompleted: Boolean
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +59,7 @@ fun JurnalScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Mind-Set", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey)
-                Text("Jurnal", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+                Text("Jurnal Pemulihan", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
             }
             Icon(Icons.Filled.Notifications, contentDescription = null, tint = MindSetNeutralGrey)
         }
@@ -64,7 +72,7 @@ fun JurnalScreen(
             Icon(Icons.Filled.Lock, contentDescription = null, tint = MindSetTertiary, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
             Text(
-                text  = "Enkripsi Lokal Aktif (Offline Ready)",
+                text  = "Enkripsi Lokal Aktif (Offline Ready Room DB)",
                 style = MaterialTheme.typography.labelSmall,
                 color = MindSetTertiary,
                 fontWeight = FontWeight.Medium
@@ -75,14 +83,14 @@ fun JurnalScreen(
 
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             Text(
-                text  = "Jurnal Pemulihan Harian",
+                text  = "Jurnal Harian & CBT AI",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MindSetNeutral,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text  = "Tulis tanpa penghakiman. Semua data tersimpan aman dan privat di perangkatmu.",
+                text  = "Tulis tanpa penghakiman. Dapatkan analisis CBT empatik seketika.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MindSetNeutralGrey
             )
@@ -187,12 +195,58 @@ fun JournalFormContent(
     tags: List<String>,
     viewModel: JournalViewModel
 ) {
-    val days   = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
-    val dates  = listOf(20, 21, 22, 23, 24, 25, 26)
-    val todayIndex = 3 // Kamis (index 3, tanggal 23)
+    val todayDate = remember { Date() }
+
+    val dateFormatHeader = remember {
+        SimpleDateFormat("EEEE, d MMMM yyyy", Locale.forLanguageTag("id-ID"))
+    }
+    val todayFormatted = remember(todayDate) {
+        dateFormatHeader.format(todayDate)
+    }
+
+    val weekDaysData = remember(todayDate) {
+        val cal = Calendar.getInstance()
+        cal.time = todayDate
+
+        val dow = cal.get(Calendar.DAY_OF_WEEK)
+        val distToMonday = when (dow) {
+            Calendar.SUNDAY -> -6
+            Calendar.MONDAY -> 0
+            Calendar.TUESDAY -> -1
+            Calendar.WEDNESDAY -> -2
+            Calendar.THURSDAY -> -3
+            Calendar.FRIDAY -> -4
+            Calendar.SATURDAY -> -5
+            else -> 0
+        }
+        cal.add(Calendar.DAY_OF_MONTH, distToMonday)
+
+        val dayNames = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
+        val todayCalStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(todayDate)
+
+        (0..6).map { i ->
+            val dayDateCopy = Date(cal.timeInMillis)
+            val dayNum = SimpleDateFormat("d", Locale.getDefault()).format(dayDateCopy).toInt()
+            val dayCalStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(dayDateCopy)
+
+            val isToday = dayCalStr == todayCalStr
+            val isCompleted = dayCalStr < todayCalStr
+
+            cal.add(Calendar.DAY_OF_MONTH, 1)
+
+            WeekDayData(
+                name = dayNames[i],
+                num = dayNum,
+                isToday = isToday,
+                isCompleted = isCompleted
+            )
+        }
+    }
+
+    val totalCleanStreak = uiState.journals.size
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // ── Week date boxes card (Read-Only / Non-editable) ──
+        // ── Fixed Date & Clean Streak Card (Real HP System Date, Read-Only) ──
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -206,9 +260,9 @@ fun JournalFormContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Hari ini: Kamis, 24 Oktober 2026", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+                    Text("Hari ini: $todayFormatted", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
                     Surface(shape = RoundedCornerShape(12.dp), color = MindSetTertiaryLight) {
-                        Text("⭐ 14 Hari Bersih", style = MaterialTheme.typography.labelSmall, color = MindSetTertiary, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        Text("⭐ $totalCleanStreak Hari Bersih", style = MaterialTheme.typography.labelSmall, color = MindSetTertiary, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -216,17 +270,14 @@ fun JournalFormContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    days.forEachIndexed { index, day ->
-                        val isSelected = index == todayIndex
-                        val isCompleted = index < todayIndex
+                    weekDaysData.forEach { (dayName, dayNum, isToday, isCompleted) ->
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally
-                            // Read-only: No clickable modifier!
                         ) {
                             Text(
-                                text  = day,
+                                text  = dayName,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) MindSetPrimary else MindSetNeutralGrey
+                                color = if (isToday) MindSetPrimary else MindSetNeutralGrey
                             )
                             Spacer(Modifier.height(4.dp))
                             Box(
@@ -235,21 +286,21 @@ fun JournalFormContent(
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
                                         when {
-                                            isSelected  -> MindSetPrimary
+                                            isToday     -> MindSetPrimary
                                             isCompleted -> MindSetTertiaryLight
                                             else        -> Color.Transparent
                                         }
                                     )
-                                    .border(1.dp, if (isSelected) MindSetPrimary else MindSetDivider, RoundedCornerShape(10.dp)),
+                                    .border(1.dp, if (isToday) MindSetPrimary else MindSetDivider, RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (isCompleted && !isSelected) {
+                                if (isCompleted && !isToday) {
                                     Text("✓", fontSize = 14.sp, color = MindSetTertiary, fontWeight = FontWeight.Bold)
                                 } else {
                                     Text(
-                                        text  = "${dates[index]}",
+                                        text  = "$dayNum",
                                         style = MaterialTheme.typography.labelMedium,
-                                        color = if (isSelected) Color.White else MindSetNeutral,
+                                        color = if (isToday) Color.White else MindSetNeutral,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
@@ -360,7 +411,8 @@ fun JournalFormContent(
 
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Bagaimana cara pandang yang lebih rasional?", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                    Text("Preferensi Jawaban dari AI.", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(4.dp))
                     Surface(shape = RoundedCornerShape(10.dp), color = MindSetSecondaryLight) {
                         Text("Reframing CBT", style = MaterialTheme.typography.labelSmall, color = MindSetNeutral, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                     }
@@ -372,7 +424,7 @@ fun JournalFormContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(80.dp),
-                    placeholder = { Text("Klik sudut pandang 'alternatif' yang berlandaskan fakta dan kebaikan diri...", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
+                    placeholder = { Text("Contoh: Jawab dengan cara halus, dan tidak menghakimi", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
                     shape  = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor      = MindSetPrimary,
@@ -497,7 +549,7 @@ fun JournalHistoryContent(
                 ) {
                     Column {
                         Text("KALENDER JURNAL", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
-                        Text("Oktober 2026", style = MaterialTheme.typography.titleSmall, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+                        Text(SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("id-ID")).format(Date()), style = MaterialTheme.typography.titleSmall, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
                     }
                     Surface(shape = RoundedCornerShape(12.dp), color = MindSetPrimaryContainer) {
                         Text("${journals.size} Catatan Tersimpan", style = MaterialTheme.typography.labelSmall, color = MindSetPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
@@ -607,7 +659,7 @@ fun JournalItemCard(item: JournalItem, onDelete: () -> Unit) {
 
             if (item.reframingText.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
-                Text("REFRAMING CBT:", style = MaterialTheme.typography.labelSmall, color = MindSetSecondary, letterSpacing = 0.5.sp)
+                Text("REFRAMING CBT / JAWABAN:", style = MaterialTheme.typography.labelSmall, color = MindSetSecondary, letterSpacing = 0.5.sp)
                 Spacer(Modifier.height(2.dp))
                 Text("\"${item.reframingText}\"", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral)
             }

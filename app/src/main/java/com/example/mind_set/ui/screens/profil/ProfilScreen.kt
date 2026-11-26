@@ -1,5 +1,8 @@
 package com.example.mind_set.ui.screens.profil
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,9 +12,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,14 +25,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mind_set.data.model.EmergencyIntervention
 import com.example.mind_set.data.model.JournalItem
+import com.example.mind_set.data.repository.UserRepository
 import com.example.mind_set.ui.theme.*
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -36,12 +47,27 @@ import java.util.Locale
 fun ProfilScreen(
     currentUsername: String = "Alex",
     emergencyHistory: List<EmergencyIntervention> = emptyList(),
-    journalHistory: List<JournalItem> = emptyList()
+    journalHistory: List<JournalItem> = emptyList(),
+    userRepository: UserRepository? = null,
+    onLogout: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
-    var biometricEnabled by remember { mutableStateOf(true) }
-    var encryptionEnabled by remember { mutableStateOf(true) }
     val tabs = listOf("Semua", "Jurnal", "Kuis/Darurat", "Milestone")
+
+    // Password Edit State
+    var isEditingPassword by remember { mutableStateOf(false) }
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var passwordMessage by remember { mutableStateOf<String?>(null) }
+    var isSuccessMessage by remember { mutableStateOf(false) }
+    var isSavingPassword by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Dialog States
+    var showEmergencyDialog by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     // Konversi data asli Room DB (emergency_logs) menjadi LogEntry UI
     val dynamicEmergencyEntries = remember(emergencyHistory) {
@@ -78,25 +104,48 @@ fun ProfilScreen(
         }
     }
 
-    // Data dummy bawaan untuk kategori Milestone
-    val staticEntries = remember {
-        listOf(
-            LogEntry(
-                date = "12 Okt 2026, 15.49 WIB",
-                category = "MILESTONE",
-                type = "🧘 Pencapaian Fase 3",
-                title = "7 Hari Kesadaran Diri Terjaga",
-                body = "Mengidentifikasi 2 pola kognisi emosional yang sering memicu dorongan impulsif dan berhasil mengendalikannya.",
-                tags = "#IdentitasDiri • #MilestoneCBT",
-                badge = "Milestone",
-                isMilestone = true
+    // Milestone dinamis berdasarkan pencapaian asli pengguna
+    val dynamicMilestoneEntries = remember(journalHistory, emergencyHistory) {
+        val list = mutableListOf<LogEntry>()
+        val formatter = SimpleDateFormat("dd MMM yyyy, HH.mm 'WIB'", Locale("id", "ID"))
+
+        if (journalHistory.isNotEmpty()) {
+            val firstJournal = journalHistory.last()
+            list.add(
+                LogEntry(
+                    date = formatter.format(Date(firstJournal.createdAt)),
+                    category = "MILESTONE",
+                    type = "🧘 Pencapaian Langkah Pertama",
+                    title = "Jurnal Pemulihan Pertama",
+                    body = "Berhasil membuat refleksi harian pertama untuk mengenali pola pemicu kognitif.",
+                    tags = "#LangkahAwal • #MilestoneCBT",
+                    badge = "Milestone",
+                    isMilestone = true
+                )
             )
-        )
+        }
+
+        if (journalHistory.size >= 7) {
+            val seventhJournal = journalHistory[journalHistory.size - 7]
+            list.add(
+                LogEntry(
+                    date = formatter.format(Date(seventhJournal.createdAt)),
+                    category = "MILESTONE",
+                    type = "🧘 Pencapaian Fase 2",
+                    title = "7 Hari Kesadaran Diri Terjaga",
+                    body = "Konsisten mencatat refleksi harian dan mengidentifikasi pola pemicu emosional.",
+                    tags = "#IdentitasDiri • #MilestoneCBT",
+                    badge = "Milestone",
+                    isMilestone = true
+                )
+            )
+        }
+
+        list
     }
 
-    // Gabungkan & filter sesuai tab yang aktif
-    val filteredEntries = remember(selectedTab, dynamicEmergencyEntries, dynamicJournalEntries, staticEntries) {
-        val allEntries = dynamicEmergencyEntries + dynamicJournalEntries + staticEntries
+    val filteredEntries = remember(selectedTab, dynamicEmergencyEntries, dynamicJournalEntries, dynamicMilestoneEntries) {
+        val allEntries = dynamicEmergencyEntries + dynamicJournalEntries + dynamicMilestoneEntries
         when (selectedTab) {
             1 -> allEntries.filter { it.category == "JURNAL" }
             2 -> allEntries.filter { it.category == "DARURAT" }
@@ -166,7 +215,7 @@ fun ProfilScreen(
                         Spacer(Modifier.height(4.dp))
                         Surface(shape = RoundedCornerShape(10.dp), color = MindSetPrimaryContainer) {
                             Text(
-                                text = "🏆 Pejuang Pulih • Fase 3",
+                                text = if (journalHistory.size >= 7) "🏆 Pejuang Pulih • Fase 2" else "🌱 Pejuang Pulih • Fase 1",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MindSetPrimary,
                                 fontWeight = FontWeight.SemiBold,
@@ -175,13 +224,10 @@ fun ProfilScreen(
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "Bergabung sejak Jul 2026",
+                            text = "Akun Lokal Terenkripsi SHA-256",
                             style = MaterialTheme.typography.labelSmall,
                             color = MindSetNeutralGrey
                         )
-                    }
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Pengaturan", tint = MindSetNeutralGrey)
                     }
                 }
 
@@ -209,15 +255,16 @@ fun ProfilScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Statistik Kumulatif (dinamis berdasarkan database jurnal & darurat)
-                val totalReflections = journalHistory.size + 65
-                val totalCbtSessions = 12 + emergencyHistory.size + journalHistory.size
+                val cleanStreakDays = journalHistory.size
+                val totalReflections = journalHistory.size
+                val totalCbtSessions = emergencyHistory.size + journalHistory.size
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ProfileStat("42", "Hari Bersih\nKumulatif")
+                    ProfileStat("$cleanStreakDays Hari", "Hari Bersih\nKumulatif")
                     Box(modifier = Modifier.width(1.dp).height(36.dp).background(MindSetDivider))
                     ProfileStat("$totalReflections", "Refleksi\nTotal")
                     Box(modifier = Modifier.width(1.dp).height(36.dp).background(MindSetDivider))
@@ -238,7 +285,153 @@ fun ProfilScreen(
             }
         }
 
-        // ── 3. Riwayat & Log Pemulihan (Terhubung ke Room DB Jurnal & Darurat) ────────────
+        // ── 3. Edit Profil (Ganti Kata Sandi) ────────────────────────────
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MindSetSurface),
+            border = BorderStroke(1.dp, MindSetDivider.copy(alpha = 0.6f))
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isEditingPassword = !isEditingPassword },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = null, tint = MindSetPrimary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Edit Profil & Ganti Kata Sandi",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MindSetNeutral,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Ubah kata sandi rahasia untuk akun '$currentUsername'",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MindSetNeutralGrey
+                        )
+                    }
+                    Icon(
+                        imageVector = if (isEditingPassword) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = null,
+                        tint = MindSetNeutralGrey
+                    )
+                }
+
+                if (isEditingPassword) {
+                    Spacer(Modifier.height(14.dp))
+                    HorizontalDivider(color = MindSetDivider)
+                    Spacer(Modifier.height(14.dp))
+
+                    if (passwordMessage != null) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSuccessMessage) MindSetTertiaryLight else MindSetError.copy(alpha = 0.15f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = passwordMessage!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isSuccessMessage) MindSetNeutral else MindSetError,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+
+                    Text("Kata Sandi Lama", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey)
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = oldPassword,
+                        onValueChange = { oldPassword = it; passwordMessage = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("••••••••••", color = MindSetNeutralLight) },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(Modifier.height(10.dp))
+
+                    Text("Kata Sandi Baru", style = MaterialTheme.typography.labelSmall, color = MindSetNeutralGrey)
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = { newPassword = it; passwordMessage = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("••••••••••", color = MindSetNeutralLight) },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = "Toggle Password",
+                                    tint = MindSetNeutralGrey
+                                )
+                            }
+                        },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Button(
+                        onClick = {
+                            if (oldPassword.isBlank() || newPassword.isBlank()) {
+                                passwordMessage = "Kata sandi tidak boleh kosong."
+                                isSuccessMessage = false
+                                return@Button
+                            }
+                            if (userRepository == null) {
+                                passwordMessage = "Repository autentikasi belum tersedia."
+                                isSuccessMessage = false
+                                return@Button
+                            }
+
+                            isSavingPassword = true
+                            coroutineScope.launch {
+                                val success = userRepository.changePassword(
+                                    username = currentUsername,
+                                    oldPass = oldPassword,
+                                    newPass = newPassword
+                                )
+                                isSavingPassword = false
+                                if (success) {
+                                    passwordMessage = "Kata sandi akun '$currentUsername' berhasil diperbarui!"
+                                    isSuccessMessage = true
+                                    oldPassword = ""
+                                    newPassword = ""
+                                } else {
+                                    passwordMessage = "Gagal memperbarui. Kata sandi lama tidak cocok."
+                                    isSuccessMessage = false
+                                }
+                            }
+                        },
+                        enabled = !isSavingPassword,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MindSetPrimary)
+                    ) {
+                        if (isSavingPassword) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        } else {
+                            Text("Simpan Kata Sandi Baru", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 4. Riwayat & Log Pemulihan (Terhubung ke Room DB Jurnal & Darurat) ────────────
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
@@ -280,7 +473,6 @@ fun ProfilScreen(
 
                 Spacer(Modifier.height(12.dp))
 
-                // Tab Filter Scrollable agar tidak berdesakan
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -340,75 +532,11 @@ fun ProfilScreen(
             }
         }
 
-        // ── 4. Privasi & Keamanan Data ───────────────────────────────────
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MindSetSurface),
-            border = BorderStroke(1.dp, MindSetDivider.copy(alpha = 0.6f))
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Security, contentDescription = null, tint = MindSetPrimary, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "Privasi & Keamanan Data",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MindSetNeutral,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
-
-                PrivacyToggleRow(
-                    icon = "🛡️",
-                    title = "Enkripsi Penyimpanan Lokal",
-                    subtitle = "Melindungi log jurnal dan riwayat darurat di database perangkat.",
-                    checked = encryptionEnabled,
-                    onCheckedChange = { encryptionEnabled = it }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = MindSetDivider)
-
-                PrivacyToggleRow(
-                    icon = "🔐",
-                    title = "Kunci Biometrik (Sidik Jari / Wajah)",
-                    subtitle = "Verifikasi instan saat aplikasi dibuka kembali setelah 1 menit.",
-                    checked = biometricEnabled,
-                    onCheckedChange = { biometricEnabled = it }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = MindSetDivider)
-
-                ActionSettingRow(
-                    icon = "📤",
-                    title = "Ekspor Catatan Pemulihan",
-                    subtitle = "Format ringkas untuk kebutuhan sesi konsultasi psikolog"
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = MindSetDivider)
-
-                ActionSettingRow(
-                    icon = "📥",
-                    title = "Unduh Rekap Enkripsi (JSON / PDF)",
-                    subtitle = "Penyimpanan Lokal 100% Aman (AES-256) di perangkatmu"
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = MindSetDivider)
-
-                ActionSettingRow(
-                    icon = "👤",
-                    title = "Edit Profil & Preferensi Afirmasi",
-                    subtitle = "Ubah nama panggilan, pengingat harian, dan persona pendamping"
-                )
-            }
-        }
-
         // ── 5. Pusat Bantuan Darurat ─────────────────────────────────────
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {},
+                .clickable { showEmergencyDialog = true },
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = MindSetSecondaryLight),
             border = BorderStroke(1.dp, MindSetSecondary)
@@ -446,15 +574,35 @@ fun ProfilScreen(
             }
         }
 
-        TextButton(
-            onClick = {},
-            modifier = Modifier.fillMaxWidth()
+        // ── 6. Opsi Keluar Akun & Keluar Aplikasi (Quit) ──────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "🔓 Keluar dari Perangkat Ini",
-                style = MaterialTheme.typography.labelMedium,
-                color = MindSetNeutralGrey
-            )
+            OutlinedButton(
+                onClick = { showLogoutDialog = true },
+                modifier = Modifier.weight(1f).height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, MindSetDivider)
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = MindSetNeutral, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Keluar Akun", style = MaterialTheme.typography.labelMedium, color = MindSetNeutral, fontWeight = FontWeight.SemiBold)
+            }
+
+            OutlinedButton(
+                onClick = {
+                    (context as? Activity)?.finish()
+                },
+                modifier = Modifier.weight(1f).height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, MindSetError.copy(alpha = 0.4f)),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = MindSetError.copy(alpha = 0.08f))
+            ) {
+                Icon(Icons.Filled.PowerSettingsNew, contentDescription = null, tint = MindSetError, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Tutup Aplikasi", style = MaterialTheme.typography.labelMedium, color = MindSetError, fontWeight = FontWeight.Bold)
+            }
         }
 
         Text(
@@ -467,11 +615,102 @@ fun ProfilScreen(
 
         Spacer(Modifier.height(8.dp))
     }
+
+    // Logout Confirmation Dialog
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = {
+                Text(
+                    text = "Keluar dari Akun?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Anda akan keluar dari akun '$currentUsername'. Seluruh catatan dan riwayat Anda tetap tersimpan aman di database lokal gawai ini.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MindSetNeutralGrey
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutDialog = false
+                        onLogout()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MindSetPrimary)
+                ) {
+                    Text("Ya, Keluar Akun", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text("Batal", color = MindSetNeutral)
+                }
+            }
+        )
+    }
+
+    // Emergency Counseling Dialog
+    if (showEmergencyDialog) {
+        AlertDialog(
+            onDismissRequest = { showEmergencyDialog = false },
+            title = {
+                Text(
+                    text = "Pusat Bantuan & Konseling Darurat 24/7",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Jika Anda membutuhkan bantuan segera atau ingin berbicara dengan profesional:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MindSetSecondaryLight,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("📞 Layanan Kemenkes Sehat Jiwa", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                            Text("Hotline 119 (Ext 8) / 1500-715", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Text(
+                        text = "Layanan ini gratis, rahasia, dan beroperasi 24 jam sehari.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MindSetNeutralGrey
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showEmergencyDialog = false
+                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:119"))
+                        context.startActivity(intent)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MindSetPrimary)
+                ) {
+                    Text("Panggil Hotline 119", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEmergencyDialog = false }) {
+                    Text("Tutup", color = MindSetNeutral)
+                }
+            }
+        )
+    }
 }
 
 data class LogEntry(
     val date: String,
-    val category: String, // "JURNAL", "DARURAT", atau "MILESTONE"
+    val category: String,
     val type: String,
     val title: String,
     val body: String,
@@ -569,79 +808,5 @@ fun ProfileStat(value: String, label: String) {
             color = MindSetNeutralGrey,
             textAlign = TextAlign.Center
         )
-    }
-}
-
-@Composable
-fun PrivacyToggleRow(
-    icon: String,
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(icon, fontSize = 18.sp)
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MindSetNeutral,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = MindSetNeutralGrey,
-                lineHeight = 16.sp
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = MindSetPrimary
-            )
-        )
-    }
-}
-
-@Composable
-fun ActionSettingRow(
-    icon: String,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit = {}
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(icon, fontSize = 18.sp)
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MindSetNeutral,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = MindSetNeutralGrey,
-                lineHeight = 16.sp
-            )
-        }
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MindSetNeutralGrey)
     }
 }

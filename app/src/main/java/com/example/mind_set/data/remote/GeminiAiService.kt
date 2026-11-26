@@ -21,14 +21,14 @@ class GeminiAiService(
 ) {
 
     companion object {
-        private const val MODEL_NAME = "gemini-3.8-flash"
+        private const val MODEL_NAME = "gemini-1.5-flash"
         private const val BASE_URL =
             "https://generativelanguage.googleapis.com/v1beta/models/$MODEL_NAME:generateContent"
         private const val TIMEOUT_MS = 15_000
     }
 
     fun isApiConfigured(): Boolean =
-        proxyUrlProvider().isNotBlank() || apiKeyProvider().isNotBlank()
+        apiKeyProvider().isNotBlank() || proxyUrlProvider().isNotBlank()
 
     suspend fun generateDailyRecommendation(
         context: UserContextSummary
@@ -196,18 +196,19 @@ class GeminiAiService(
     }
 
     private fun requestJsonFromGemini(prompt: String): Result<String> {
-        val proxyUrl = proxyUrlProvider().trim()
         val apiKey = apiKeyProvider().trim()
+        val proxyUrl = proxyUrlProvider().trim()
 
-        if (proxyUrl.isBlank() && apiKey.isBlank()) {
+        if (apiKey.isBlank() && proxyUrl.isBlank()) {
             return Result.failure(
-                IllegalStateException("AI Proxy URL maupun API Key Gemini belum dikonfigurasi.")
+                IllegalStateException("API Key Gemini maupun AI Proxy URL belum dikonfigurasi.")
             )
         }
 
-        val useProxy = proxyUrl.isNotBlank()
+        val useDirectApi = apiKey.isNotBlank()
+
         return runCatching {
-            val url = if (useProxy) URL(proxyUrl) else URL("$BASE_URL?key=$apiKey")
+            val url = if (useDirectApi) URL("$BASE_URL?key=$apiKey") else URL(proxyUrl)
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = TIMEOUT_MS
@@ -217,11 +218,7 @@ class GeminiAiService(
             }
 
             try {
-                val requestBody = if (useProxy) {
-                    JSONObject().apply {
-                        put("prompt", prompt)
-                    }
-                } else {
+                val requestBody = if (useDirectApi) {
                     JSONObject().apply {
                         put(
                             "contents",
@@ -239,6 +236,10 @@ class GeminiAiService(
                                 put("responseMimeType", "application/json")
                             }
                         )
+                    }
+                } else {
+                    JSONObject().apply {
+                        put("prompt", prompt)
                     }
                 }
 
@@ -276,7 +277,6 @@ class GeminiAiService(
                 val rawText = parts.optJSONObject(0)?.optString("text").orEmpty().trim()
                 if (rawText.isBlank()) error("Teks respons AI kosong")
 
-                // Bersihkan markdown code fence jika ada
                 rawText
                     .removePrefix("```json")
                     .removePrefix("```")

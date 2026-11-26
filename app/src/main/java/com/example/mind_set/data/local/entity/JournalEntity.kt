@@ -9,6 +9,9 @@ data class JournalEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
+    @ColumnInfo(name = "username")
+    val username: String = "default_user",
+
     @ColumnInfo(name = "date")
     val date: Long = System.currentTimeMillis(),
 
