@@ -204,7 +204,6 @@ fun JournalFormContent(
         dateFormatHeader.format(todayDate)
     }
 
-    // Hitung 7 hari minggu berjalan (Senin s.d. Minggu) secara presisi dari sistem HP
     val weekDaysData = remember(todayDate) {
         val cal = Calendar.getInstance()
         cal.time = todayDate
@@ -244,7 +243,7 @@ fun JournalFormContent(
         }
     }
 
-    val totalCleanStreak = 14 + uiState.journals.size
+    val totalCleanStreak = uiState.journals.size
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // ── Fixed Date & Clean Streak Card (Real HP System Date, Read-Only) ──
@@ -274,7 +273,6 @@ fun JournalFormContent(
                     weekDaysData.forEach { (dayName, dayNum, isToday, isCompleted) ->
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally
-                            // Read-only: Non-editable!
                         ) {
                             Text(
                                 text  = dayName,
@@ -413,7 +411,8 @@ fun JournalFormContent(
 
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Bagaimana cara pandang yang lebih rasional?", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                    Text("Bagaimana sudut pandang yang lebih welas asih atau preferensi jawabanmu?", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(4.dp))
                     Surface(shape = RoundedCornerShape(10.dp), color = MindSetSecondaryLight) {
                         Text("Reframing CBT", style = MaterialTheme.typography.labelSmall, color = MindSetNeutral, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                     }
@@ -425,7 +424,7 @@ fun JournalFormContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(80.dp),
-                    placeholder = { Text("Klik sudut pandang 'alternatif' yang berlandaskan fakta dan kebaikan diri...", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
+                    placeholder = { Text("Tuliskan sudut pandang alternatif yang lebih welas asih atau preferensi jawabanmu...", style = MaterialTheme.typography.bodySmall, color = MindSetNeutralLight) },
                     shape  = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor      = MindSetPrimary,
@@ -660,7 +659,7 @@ fun JournalItemCard(item: JournalItem, onDelete: () -> Unit) {
 
             if (item.reframingText.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
-                Text("REFRAMING CBT:", style = MaterialTheme.typography.labelSmall, color = MindSetSecondary, letterSpacing = 0.5.sp)
+                Text("REFRAMING CBT / JAWABAN:", style = MaterialTheme.typography.labelSmall, color = MindSetSecondary, letterSpacing = 0.5.sp)
                 Spacer(Modifier.height(2.dp))
                 Text("\"${item.reframingText}\"", style = MaterialTheme.typography.bodySmall, color = MindSetNeutral)
             }

@@ -23,6 +23,7 @@ import com.example.mind_set.data.repository.DefaultEmergencyRepository
 import com.example.mind_set.data.repository.DefaultJournalRepository
 import com.example.mind_set.data.repository.DefaultProgressRepository
 import com.example.mind_set.data.repository.DefaultUserRepository
+import com.example.mind_set.data.repository.UserRepository
 import com.example.mind_set.ui.components.BottomNavBar
 import com.example.mind_set.ui.emergency.EmergencyViewModel
 import com.example.mind_set.ui.screens.home.HomeScreen
@@ -73,8 +74,14 @@ fun MindSetNavGraph() {
             MainScreen(
                 currentUsername = username,
                 database = database,
+                userRepository = userRepository,
                 onNavigateToPauseGround = {
                     rootNavController.navigate("pause_ground")
+                },
+                onLogout = {
+                    rootNavController.navigate("login") {
+                        popUpTo("login") { inclusive = true }
+                    }
                 }
             )
         }
@@ -103,7 +110,9 @@ fun MindSetNavGraph() {
 fun MainScreen(
     currentUsername: String,
     database: AppDatabase,
-    onNavigateToPauseGround: () -> Unit
+    userRepository: UserRepository,
+    onNavigateToPauseGround: () -> Unit,
+    onLogout: () -> Unit
 ) {
     val bottomNavController = rememberNavController()
     val context = LocalContext.current
@@ -188,7 +197,9 @@ fun MainScreen(
                 ProfilScreen(
                     currentUsername = currentUsername,
                     emergencyHistory = emergencyHistory,
-                    journalHistory = journalHistory
+                    journalHistory = journalHistory,
+                    userRepository = userRepository,
+                    onLogout = onLogout
                 )
             }
         }
