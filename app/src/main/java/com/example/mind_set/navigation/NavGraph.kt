@@ -36,6 +36,7 @@ import com.example.mind_set.ui.screens.pauseground.PauseGroundScreen
 import com.example.mind_set.ui.screens.profil.ProfilScreen
 import com.example.mind_set.ui.screens.progress.ProgressScreen
 import com.example.mind_set.ui.screens.progress.ProgressViewModel
+import com.example.mind_set.ui.screens.splash.SplashScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -48,7 +49,17 @@ fun MindSetNavGraph() {
     val database = remember { AppDatabase.getDatabase(context) }
     val userRepository = remember { DefaultUserRepository(database.userDao()) }
 
-    NavHost(navController = rootNavController, startDestination = "login") {
+    NavHost(navController = rootNavController, startDestination = "splash") {
+
+        composable("splash") {
+            SplashScreen(
+                onSplashFinished = {
+                    rootNavController.navigate("login") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                }
+            )
+        }
 
         composable("login") {
             val loginViewModel: LoginViewModel = viewModel(
@@ -76,7 +87,7 @@ fun MindSetNavGraph() {
                 database = database,
                 userRepository = userRepository,
                 onNavigateToPauseGround = {
-                    rootNavController.navigate("pause_ground/$encoded")
+                    rootNavController.navigate("pause_ground")
                 },
                 onLogout = {
                     rootNavController.navigate("login") {
@@ -86,12 +97,7 @@ fun MindSetNavGraph() {
             )
         }
 
-        composable(
-            route = "pause_ground/{encodedUsername}",
-            arguments = listOf(navArgument("encodedUsername") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val encoded = backStackEntry.arguments?.getString("encodedUsername") ?: "default_user"
-            val username = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+        composable("pause_ground") {
             val ctx = LocalContext.current
             val emergencyViewModel: EmergencyViewModel = viewModel(
                 factory = EmergencyViewModel.provideFactory(
@@ -99,7 +105,7 @@ fun MindSetNavGraph() {
                         emergencyLogDao = AppDatabase.getDatabase(ctx).emergencyLogDao(),
                         context = ctx,
                         geminiAiService = GeminiAiService(),
-                        username = username
+                        username = "default_user"
                     )
                 )
             )

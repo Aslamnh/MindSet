@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+
+    <!-- Circle Background -->
+    <path
+        android:pathData="M64,8C33.07,8 8,33.07 8,64C8,94.93 33.07,120 64,120C94.93,120 120,94.93 120,64C120,33.07 94.93,8 64,8Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="8"
+                android:startY="8"
+                android:endX="120"
+                android:endY="120"
+                android:type="linear">
+                <item android:color="#FF4F46E5" android:offset="0.0"/>
+                <item android:color="#FF312E81" android:offset="1.0"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner Calm Mind Leaf Motif -->
+    <path
+        android:pathData="M64,32C44,32 36,48 36,68C36,88 48,96 64,96C80,96 92,88 92,68C92,48 84,32 64,32Z"
+        android:fillColor="#15FFFFFF"/>
+
+    <!-- Left Brain-Mind Wave -->
+    <path
+        android:pathData="M64,40C50,40 44,52 44,68C44,82 52,88 64,88C64,88 64,68 64,40Z"
+        android:fillColor="#FF10B981"/>
+
+    <!-- Right Lotus-Mind Leaf -->
+    <path
+        android:pathData="M64,40C78,40 84,52 84,68C84,82 76,88 64,88C64,88 64,68 64,40Z"
+        android:fillColor="#FF34D399"/>
+
+    <!-- Center Sprout/Mind Core -->
+    <path
+        android:pathData="M64,44C64,44 60,56 60,66C60,72 64,76 64,76C64,76 68,72 68,66C68,56 64,44 64,44Z"
+        android:fillColor="#FFFFFFFF"/>
+</vector>
