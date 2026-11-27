@@ -76,7 +76,7 @@ fun MindSetNavGraph() {
                 database = database,
                 userRepository = userRepository,
                 onNavigateToPauseGround = {
-                    rootNavController.navigate("pause_ground")
+                    rootNavController.navigate("pause_ground/$encoded")
                 },
                 onLogout = {
                     rootNavController.navigate("login") {
@@ -86,7 +86,12 @@ fun MindSetNavGraph() {
             )
         }
 
-        composable("pause_ground") {
+        composable(
+            route = "pause_ground/{encodedUsername}",
+            arguments = listOf(navArgument("encodedUsername") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encoded = backStackEntry.arguments?.getString("encodedUsername") ?: "default_user"
+            val username = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
             val ctx = LocalContext.current
             val emergencyViewModel: EmergencyViewModel = viewModel(
                 factory = EmergencyViewModel.provideFactory(
@@ -94,7 +99,7 @@ fun MindSetNavGraph() {
                         emergencyLogDao = AppDatabase.getDatabase(ctx).emergencyLogDao(),
                         context = ctx,
                         geminiAiService = GeminiAiService(),
-                        username = "default_user"
+                        username = username
                     )
                 )
             )

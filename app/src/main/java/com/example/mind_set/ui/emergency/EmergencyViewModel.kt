@@ -3,7 +3,6 @@ package com.example.mind_set.ui.emergency
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.mind_set.data.repository.CbtClosingMessages
 import com.example.mind_set.data.repository.EmergencyRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,8 +17,6 @@ class EmergencyViewModel(
 
     private val _uiState = MutableStateFlow(EmergencyUiState())
     val uiState: StateFlow<EmergencyUiState> = _uiState.asStateFlow()
-
-    /** Batas retry sebelum masuk fase Refleksi Detail Krisis */
     private val maxRetryBeforeReflection = 3
 
     init {
@@ -120,11 +117,19 @@ class EmergencyViewModel(
 
         viewModelScope.launch {
             try {
+                val baseNote = currentState.additionalNote.trim()
+                val retryNote = if (baseNote.isNotBlank()) {
+                    "$baseNote (Percobaan alternatif ke-$nextRetryCount)"
+                } else {
+                    "Eskalasi percobaan ke-$nextRetryCount"
+                }
+
                 val newResult = repository.processEmergencyAssessment(
                     urgeLevel = escalatedUrgeLevel,
                     triggerCategory = currentState.selectedTrigger,
-                    additionalNote = "Eskalasi percobaan ke-$nextRetryCount",
-                    excludeTitle = previousTitle
+                    additionalNote = retryNote,
+                    excludeTitle = previousTitle,
+                    retryCount = nextRetryCount
                 )
                 _uiState.update {
                     it.copy(
@@ -146,8 +151,6 @@ class EmergencyViewModel(
     }
 
     // ── Phase 2 → 3: Kirim refleksi detail & tutup sesi ────────────────
-    // Offline / API belum ada: simpan ke Room DB → tampilkan pesan penutup empatik.
-    // Online + API terpasang: (TODO) kirim ke AI → simpan response → tampilkan.
     fun submitReflectionAndClose() {
         val currentState = _uiState.value
         if (currentState.isLoading || currentState.isSessionCompleted) return
@@ -162,36 +165,19 @@ class EmergencyViewModel(
 
         viewModelScope.launch {
             try {
-                // === Fase Online (TODO: aktifkan saat API AI tersedia) ===
-                // val isOnline = networkChecker.isConnected()
-                // val aiService = aiApiService
-                // if (isOnline && aiService != null) {
-                //     val aiResponse = aiService.generatePersonalClosing(
-                //         reflectionText = currentState.reflectionText,
-                //         urgeLevel = currentState.urgeLevel,
-                //         trigger = currentState.selectedTrigger
-                //     )
-                //     val logId = repository.submitReflectionAndClose(...)
-                //     _uiState.update {
-                //         it.copy(
-                //             isLoading = false,
-                //             isSessionCompleted = true,
-                //             closingMessage = aiResponse.personalClosingMessage,
-                //             finalLogId = logId
-                //         )
-                //     }
-                //     return@launch
-                // }
-
-                // === Fase Offline (fallback saat ini) ===
+                val trimmedReflection = currentState.reflectionText.trim()
                 val logId = repository.submitReflectionAndClose(
                     urgeLevel = currentState.urgeLevel,
                     triggerCategory = currentState.selectedTrigger,
-                    reflectionNote = currentState.reflectionText.trim(),
+                    reflectionNote = trimmedReflection,
                     existingLogId = currentState.finalLogId
                 )
 
-                val closingMessage = CbtClosingMessages.getRandomClosingMessage()
+                val closingMessage = repository.generatePersonalClosing(
+                    urgeLevel = currentState.urgeLevel,
+                    triggerCategory = currentState.selectedTrigger,
+                    reflectionNote = trimmedReflection
+                )
 
                 _uiState.update {
                     it.copy(

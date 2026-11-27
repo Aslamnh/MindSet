@@ -117,7 +117,9 @@ class GeminiAiService(
     suspend fun analyzeEmergency(
         urgeLevel: Int,
         triggerCategory: String,
-        additionalNote: String
+        additionalNote: String,
+        excludeTitle: String? = null,
+        retryCount: Int = 0
     ): Result<EmergencyIntervention> = withContext(Dispatchers.IO) {
         val urgencyStatus = when {
             urgeLevel >= 4 -> "HIGH"
@@ -125,14 +127,18 @@ class GeminiAiService(
             else -> "LOW"
         }
         val prompt = buildString {
-            appendLine("Kamu adalah asisten intervensi krisis CBT dalam bahasa Indonesia yang menenangkan dan praktis.")
-            appendLine("Pengguna baru menekan Emergency Button dengan kondisi:")
+            appendLine("Kamu adalah asisten intervensi krisis CBT dalam bahasa Indonesia yang menenangkan, empatik, dan sangat praktis.")
+            appendLine("Pengguna baru menekan Emergency Button (Pause & Ground) dengan kondisi:")
             appendLine("- Level Dorongan (1-5): $urgeLevel ($urgencyStatus)")
             appendLine("- Pemicu Utama: $triggerCategory")
             if (additionalNote.isNotBlank()) {
-                appendLine("- Catatan Tambahan: $additionalNote")
+                appendLine("- Cerita / Catatan Pengguna: $additionalNote")
+            }
+            if (!excludeTitle.isNullOrBlank()) {
+                appendLine("- Teknik sebelumnya yang BELUM mempan: \"$excludeTitle\" (percobaan ke-$retryCount). WAJIB berikan teknik CBT yang BERBEDA dan lebih intensif/praktis.")
             }
             appendLine()
+            appendLine("Berikan 3 langkah konkret yang bisa langsung dilakukan dalam 2-5 menit ke depan dan relevan dengan cerita serta pemicu pengguna.")
             appendLine("Kembalikan JSON valid dengan schema persis berikut:")
             appendLine("""{"cbt_technique_title": "string judul teknik singkat", "recommendation_steps": ["langkah 1", "langkah 2", "langkah 3"]}""")
         }
@@ -159,6 +165,30 @@ class GeminiAiService(
                 recommendationSteps = steps,
                 sourceType = "GEMINI_AI"
             )
+        }
+    }
+
+    suspend fun generateEmergencyClosing(
+        urgeLevel: Int,
+        triggerCategory: String,
+        reflectionText: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        val prompt = buildString {
+            appendLine("Kamu adalah pendamping pemulihan kesehatan mental berbasis Cognitive Behavioral Therapy (CBT) dalam bahasa Indonesia.")
+            appendLine("Pengguna baru saja melewati momen dorongan kuat (Emergency Button) dan menuliskan refleksi pribadinya:")
+            appendLine("- Level Dorongan: $urgeLevel/5")
+            appendLine("- Pemicu: $triggerCategory")
+            appendLine("- Refleksi Pengguna: $reflectionText")
+            appendLine()
+            appendLine("Berikan pesan penutup yang hangat, validatif, bebas menghakimi, dan menguatkan langkah berikutnya (maksimal 3 kalimat).")
+            appendLine("Kembalikan JSON valid dengan schema persis berikut:")
+            appendLine("""{"closing_message": "string pesan penutup empatik"}""")
+        }
+
+        requestJsonFromGemini(prompt).mapCatching { rawJson ->
+            val obj = JSONObject(rawJson)
+            obj.optString("closing_message").takeIf { it.isNotBlank() }
+                ?: error("Pesan penutup AI kosong")
         }
     }
 
