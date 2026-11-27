@@ -45,13 +45,14 @@ fun PauseGroundScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    // State Timer Box Breathing (4 menit = 240 detik)
+    // State Timer Box Breathing (4 menit = 240 detik) — alat bantu sekunder setelah saran muncul
+    var isBreathingExpanded by remember { mutableStateOf(false) }
     var timeElapsed by remember { mutableIntStateOf(0) }
     val totalTime = 240
     var isTimerRunning by remember { mutableStateOf(true) }
 
-    LaunchedEffect(isTimerRunning) {
-        while (isTimerRunning && timeElapsed < totalTime) {
+    LaunchedEffect(isTimerRunning, isBreathingExpanded) {
+        while (isBreathingExpanded && isTimerRunning && timeElapsed < totalTime) {
             delay(1000L)
             timeElapsed++
         }
@@ -122,22 +123,6 @@ fun PauseGroundScreen(
                             )
                         }
                     }
-                },
-                actions = {
-                    if (!uiState.isSessionCompleted) {
-                        FilledTonalIconButton(
-                            onClick = { isTimerRunning = !isTimerRunning },
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MindSetPrimaryContainer,
-                                contentColor = MindSetPrimary
-                            )
-                        ) {
-                            Icon(
-                                imageVector = if (isTimerRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (isTimerRunning) "Jeda Timer" else "Lanjut Timer"
-                            )
-                        }
-                    }
                 }
             )
         }
@@ -170,25 +155,14 @@ fun PauseGroundScreen(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = "Dorongan ini hanyalah gelombang sementara dan akan mereda dalam 15–20 menit. Ikuti ritme napas di bawah ini.",
+                        text = "Dorongan ini hanyalah gelombang sementara. Isi evaluasi singkat di bawah untuk mendapatkan saran CBT personal dari AI.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MindSetNeutralGrey,
                         lineHeight = 18.sp
                     )
                 }
 
-                // ── 2. Kartu Box Breathing ────────────────────────────────
-                BreathingCard(
-                    breathText = breathText,
-                    breathGuide = breathGuide,
-                    breathCount = breathCount,
-                    circleScale = circleScale,
-                    timeElapsed = timeElapsed,
-                    totalTime = totalTime,
-                    formatTime = ::formatTime
-                )
-
-                // ── 3. Kuesioner Singkat CBT ──────────────────────────────
+                // ── 2. Fokus Utama: Kuesioner Singkat CBT ─────────────────
                 AnimatedVisibility(
                     visible = !uiState.isReflectionPhase,
                     exit = fadeOut() + shrinkVertically()
@@ -196,14 +170,17 @@ fun PauseGroundScreen(
                     AssessmentCard(
                         urgeLevel = uiState.urgeLevel,
                         selectedTrigger = uiState.selectedTrigger,
+                        additionalNote = uiState.additionalNote,
+                        hasIntervention = uiState.currentIntervention != null,
                         isLoading = uiState.isLoading,
                         onUrgeLevelChange = { viewModel.updateUrgeLevel(it) },
                         onTriggerSelect = { viewModel.selectTrigger(it) },
+                        onAdditionalNoteChange = { viewModel.updateAdditionalNote(it) },
                         onSubmit = { viewModel.submitEmergencyAssessment() }
                     )
                 }
 
-                // ── 4. Hasil Rekomendasi CBT Dinamis ──────────────────────
+                // ── 3. Fokus Utama: Hasil Rekomendasi CBT AI ──────────────
                 val intervention = uiState.currentIntervention
                 AnimatedVisibility(
                     visible = intervention != null && !uiState.isReflectionPhase,
@@ -215,6 +192,31 @@ fun PauseGroundScreen(
                             retryCount = uiState.retryCount
                         )
                     }
+                }
+
+                // ── 4. Alat Bantu Sekunder: Box Breathing (muncul setelah saran ada) ──
+                AnimatedVisibility(
+                    visible = intervention != null && !uiState.isReflectionPhase,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    BreathingCard(
+                        isExpanded = isBreathingExpanded,
+                        onToggleExpand = { isBreathingExpanded = !isBreathingExpanded },
+                        isTimerRunning = isTimerRunning,
+                        onToggleTimer = { isTimerRunning = !isTimerRunning },
+                        onResetTimer = {
+                            timeElapsed = 0
+                            isTimerRunning = true
+                        },
+                        breathText = breathText,
+                        breathGuide = breathGuide,
+                        breathCount = breathCount,
+                        circleScale = circleScale,
+                        timeElapsed = timeElapsed,
+                        totalTime = totalTime,
+                        formatTime = ::formatTime
+                    )
                 }
 
                 // ── 5. Refleksi Menenangkan (kutipan) ─────────────────────
@@ -291,6 +293,11 @@ fun PauseGroundScreen(
 
 @Composable
 private fun BreathingCard(
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    isTimerRunning: Boolean,
+    onToggleTimer: () -> Unit,
+    onResetTimer: () -> Unit,
     breathText: String,
     breathGuide: String,
     breathCount: Int,
@@ -305,80 +312,153 @@ private fun BreathingCard(
         colors = CardDefaults.cardColors(containerColor = MindSetSurface),
         border = BorderStroke(1.dp, MindSetDivider.copy(alpha = 0.6f))
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onToggleExpand() },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MindSetPrimaryContainer
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        text = "Box Breathing 4-4-4-4",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MindSetPrimary,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
-                Text(
-                    text = "${formatTime(timeElapsed)} / ${formatTime(totalTime)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MindSetNeutral,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            Box(
-                modifier = Modifier.size(180.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(172.dp)
-                        .scale(circleScale * 1.08f)
-                        .clip(CircleShape)
-                        .background(MindSetPrimaryContainer.copy(alpha = 0.55f))
-                )
-                Box(
-                    modifier = Modifier
-                        .size(138.dp)
-                        .scale(circleScale)
-                        .clip(CircleShape)
-                        .background(MindSetPrimary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MindSetPrimaryContainer
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Air,
+                            contentDescription = null,
+                            tint = MindSetPrimary,
+                            modifier = Modifier.padding(8.dp).size(18.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
                         Text(
-                            text = breathText,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
+                            text = "Alat Bantu: Box Breathing 4-4-4-4",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MindSetNeutral,
+                            fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "$breathCount dtk",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.85f)
+                            text = if (isExpanded) "Ketuk untuk menyembunyikan" else "Opsional • Ketuk untuk menenangkan napas",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MindSetNeutralGrey
                         )
                     }
                 }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (isExpanded) "Tutup" else "Buka",
+                    tint = MindSetNeutralGrey
+                )
             }
 
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = breathGuide,
-                style = MaterialTheme.typography.bodySmall,
-                color = MindSetNeutralGrey,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp)
-            )
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "${formatTime(timeElapsed)} / ${formatTime(totalTime)}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MindSetNeutral,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledTonalIconButton(
+                                onClick = onToggleTimer,
+                                modifier = Modifier.size(34.dp),
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MindSetPrimaryContainer,
+                                    contentColor = MindSetPrimary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = if (isTimerRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    contentDescription = if (isTimerRunning) "Jeda Timer" else "Lanjut Timer",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            FilledTonalIconButton(
+                                onClick = onResetTimer,
+                                modifier = Modifier.size(34.dp),
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MindSetBackground,
+                                    contentColor = MindSetNeutralGrey
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = "Ulang Timer",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Box(
+                        modifier = Modifier.size(156.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(148.dp)
+                                .scale(circleScale * 1.08f)
+                                .clip(CircleShape)
+                                .background(MindSetPrimaryContainer.copy(alpha = 0.55f))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(120.dp)
+                                .scale(circleScale)
+                                .clip(CircleShape)
+                                .background(MindSetPrimary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = breathText,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "$breathCount dtk",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.85f)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = breathGuide,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MindSetNeutralGrey,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -388,9 +468,12 @@ private fun BreathingCard(
 private fun AssessmentCard(
     urgeLevel: Int,
     selectedTrigger: String,
+    additionalNote: String,
+    hasIntervention: Boolean,
     isLoading: Boolean,
     onUrgeLevelChange: (Int) -> Unit,
     onTriggerSelect: (String) -> Unit,
+    onAdditionalNoteChange: (String) -> Unit,
     onSubmit: () -> Unit
 ) {
     Card(
@@ -521,8 +604,41 @@ private fun AssessmentCard(
 
             Spacer(Modifier.height(16.dp))
 
+            Text(
+                text = "3. Ceritakan singkat kondisimu (opsional)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MindSetNeutral,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = additionalNote,
+                onValueChange = onAdditionalNoteChange,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+                maxLines = 3,
+                placeholder = {
+                    Text(
+                        text = "Misal: \"Baru selesai kerja, sendirian di kamar, rasanya ingin buka konten lagi...\"",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MindSetNeutralLight
+                    )
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MindSetPrimary,
+                    unfocusedBorderColor = MindSetDivider,
+                    focusedContainerColor = MindSetBackground.copy(alpha = 0.5f),
+                    unfocusedContainerColor = MindSetBackground.copy(alpha = 0.3f)
+                ),
+                textStyle = MaterialTheme.typography.bodySmall.copy(color = MindSetNeutral)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
             Button(
                 onClick = onSubmit,
+                enabled = !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -542,7 +658,7 @@ private fun AssessmentCard(
                     Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "Tampilkan Panduan CBT Personal",
+                        text = if (hasIntervention) "Perbarui Panduan CBT AI" else "Dapatkan Panduan CBT AI",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -569,14 +685,29 @@ private fun InterventionResultCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = result.cbtTechniqueTitle,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MindSetPrimary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (result.sourceType == "GEMINI_AI") MindSetPrimaryContainer else MindSetBackground
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (result.sourceType == "GEMINI_AI") Icons.Filled.AutoAwesome else Icons.Filled.Shield,
+                            contentDescription = null,
+                            tint = if (result.sourceType == "GEMINI_AI") MindSetPrimary else MindSetNeutralGrey,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = if (result.sourceType == "GEMINI_AI") "Gemini AI" else "CBT Offline",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (result.sourceType == "GEMINI_AI") MindSetPrimary else MindSetNeutralGrey,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MindSetPrimaryContainer
@@ -590,6 +721,15 @@ private fun InterventionResultCard(
                     )
                 }
             }
+
+            Spacer(Modifier.height(10.dp))
+
+            Text(
+                text = result.cbtTechniqueTitle,
+                style = MaterialTheme.typography.titleSmall,
+                color = MindSetPrimary,
+                fontWeight = FontWeight.Bold
+            )
 
             if (retryCount > 0) {
                 Spacer(Modifier.height(6.dp))

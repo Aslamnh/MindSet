@@ -16,21 +16,24 @@ interface EmergencyRepository {
         urgeLevel: Int,
         triggerCategory: String,
         additionalNote: String = "",
-        excludeTitle: String? = null
+        excludeTitle: String? = null,
+        retryCount: Int = 0
     ): EmergencyIntervention
 
     fun getEmergencyHistory(): Flow<List<EmergencyIntervention>>
 
-    /**
-     * Menyimpan refleksi detail pengguna ke Room DB dan menandai sesi sebagai selesai.
-     * Mengembalikan ID log yang baru disimpan/diperbarui.
-     */
     suspend fun submitReflectionAndClose(
         urgeLevel: Int,
         triggerCategory: String,
         reflectionNote: String,
         existingLogId: Int? = null
     ): Int
+
+    suspend fun generatePersonalClosing(
+        urgeLevel: Int,
+        triggerCategory: String,
+        reflectionNote: String
+    ): String = CbtClosingMessages.getRandomClosingMessage()
 }
 
 class DefaultEmergencyRepository(
@@ -44,11 +47,11 @@ class DefaultEmergencyRepository(
         urgeLevel: Int,
         triggerCategory: String,
         additionalNote: String,
-        excludeTitle: String?
+        excludeTitle: String?,
+        retryCount: Int
     ): EmergencyIntervention = withContext(Dispatchers.IO) {
 
-        val canUseAi = excludeTitle == null &&
-            context != null &&
+        val canUseAi = context != null &&
             geminiAiService != null &&
             NetworkUtils.isInternetAvailable(context) &&
             geminiAiService.isApiConfigured()
@@ -57,7 +60,9 @@ class DefaultEmergencyRepository(
             geminiAiService!!.analyzeEmergency(
                 urgeLevel = urgeLevel,
                 triggerCategory = triggerCategory,
-                additionalNote = additionalNote
+                additionalNote = additionalNote,
+                excludeTitle = excludeTitle,
+                retryCount = retryCount
             ).getOrElse {
                 CbtFallbackProvider.generate(
                     urgeLevel = urgeLevel,
@@ -118,6 +123,29 @@ class DefaultEmergencyRepository(
                 isSessionCompleted = true
             )
             emergencyLogDao.insertLog(entity).toInt()
+        }
+    }
+
+    override suspend fun generatePersonalClosing(
+        urgeLevel: Int,
+        triggerCategory: String,
+        reflectionNote: String
+    ): String = withContext(Dispatchers.IO) {
+        val canUseAi = context != null &&
+            geminiAiService != null &&
+            NetworkUtils.isInternetAvailable(context) &&
+            geminiAiService.isApiConfigured()
+
+        if (canUseAi) {
+            geminiAiService!!.generateEmergencyClosing(
+                urgeLevel = urgeLevel,
+                triggerCategory = triggerCategory,
+                reflectionText = reflectionNote
+            ).getOrElse {
+                CbtClosingMessages.getRandomClosingMessage()
+            }
+        } else {
+            CbtClosingMessages.getRandomClosingMessage()
         }
     }
 
